@@ -141,3 +141,13 @@ npm start
 ## 📄 许可证
 
 MIT License
+<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/407c6c71-84e9-4571-b84e-94079fd0629b" />
+<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/2fc468c5-903c-4f22-a76e-e3d512bf7fc5" />
+<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/047bebea-7908-43b3-a780-0aabc75e7804" />
+<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/4804e997-fd14-43e3-add3-5f266dce4cd6" />
+<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/4a823e33-5955-471e-bdb5-47496a499c73" />
+<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/700e709e-7bc5-4cad-8ce3-341c015bce84" />
+<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/5703ba0f-14de-4bfe-b730-af6a2d5062c7" />
+
+
+
