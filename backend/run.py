@@ -1,5 +1,8 @@
 import asyncio
 import uvicorn
+from app.logger import setup_logging
+
+setup_logging()
 
 async def _init_db():
     from app.database import engine, Base

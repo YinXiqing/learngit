@@ -15,7 +15,7 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(''); setLoading(true)
+    setLoading(true)
     const res = await login(form.username, form.password)
     if (res.success) router.replace('/')
     else { setError(res.error ?? '登录失败'); setLoading(false) }

@@ -1,4 +1,5 @@
 import os, uuid, asyncio
+from app.logger import logger
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
@@ -299,7 +300,7 @@ async def _download_cover(video_id: int, cover_url: str):
             await db.execute(update(Video).where(Video.id == video_id).values(cover_image=fname))
             await db.commit()
     except Exception as e:
-        print(f"[bg] cover download failed: {e}")
+        logger.warning("cover_download_failed", video_id=video_id, error=str(e))
 
 
 class ScrapedUpdate(BaseModel):

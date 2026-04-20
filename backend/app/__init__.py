@@ -1,18 +1,45 @@
+from contextlib import asynccontextmanager
+import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from app.logger import logger
 from config import settings
-from app.database import engine, Base
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+
+class LimitBodySizeMiddleware(BaseHTTPMiddleware):
+    """非上传接口限制请求体 1MB"""
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path != "/api/video/upload":
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) > 1 * 1024 * 1024:
+                return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+        return await call_next(request)
+
+class AccessLogMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        t = time.perf_counter()
+        response = await call_next(request)
+        ms = round((time.perf_counter() - t) * 1000)
+        logger.info("request", method=request.method, path=request.url.path, status=response.status_code, ms=ms)
+        return response
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Video Platform API")
+    app = FastAPI(title="Video Platform API", lifespan=lifespan)
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+    app.add_middleware(LimitBodySizeMiddleware)
+    app.add_middleware(AccessLogMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
@@ -20,6 +47,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logger.error("unhandled_exception", path=request.url.path, error=str(exc), exc_info=True)
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     from app.routes.auth import router as auth_router
     from app.routes.video import router as video_router

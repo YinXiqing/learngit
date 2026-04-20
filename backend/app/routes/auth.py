@@ -1,4 +1,4 @@
-import re
+import re, asyncio
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from jose import jwt
@@ -50,7 +50,8 @@ async def register(request: Request, data: RegisterIn, db: AsyncSession = Depend
         raise HTTPException(409, "Username or email already exists")
 
     user = User(username=username, email=email)
-    user.set_password(data.password)
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, user.set_password, data.password)
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -64,7 +65,8 @@ async def login(request: Request, response: Response, data: LoginIn, db: AsyncSe
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(401, "用户名或邮箱不存在")
-    if not user.check_password(data.password):
+    loop = asyncio.get_running_loop()
+    if not await loop.run_in_executor(None, user.check_password, data.password):
         raise HTTPException(401, "密码错误")
     if not user.is_active:
         raise HTTPException(403, "Account is disabled")
@@ -102,7 +104,8 @@ async def update_profile(data: ProfileUpdate, user: User = Depends(get_current_u
     if data.password:
         if len(data.password) < 6:
             raise HTTPException(400, "Password must be at least 6 characters")
-        user.set_password(data.password)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, user.set_password, data.password)
     await db.commit()
     await db.refresh(user)
     return {"message": "Profile updated successfully", "user": user.to_dict()}

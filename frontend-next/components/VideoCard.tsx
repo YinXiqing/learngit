@@ -49,8 +49,15 @@ export default function VideoCard({ video, hoveredVideo, setHoveredVideo, format
   }
 
   const handleEnter = () => {
-    if (video.is_scraped && video.source_url && window.Hls && !hlsRef.current) {
-      startHls(video.source_url)
+    if (video.is_scraped && video.source_url && !hlsRef.current) {
+      if (window.Hls) {
+        startHls(video.source_url)
+      } else {
+        const s = document.createElement('script')
+        s.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js'
+        s.onload = () => { if (hlsRef.current === null) startHls(video.source_url!) }
+        document.head.appendChild(s)
+      }
     }
     timer.current = setTimeout(() => setHoveredVideo(video.id), 150)
   }

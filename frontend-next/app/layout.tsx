@@ -1,5 +1,6 @@
 import './globals.css'
 import type { ReactNode } from 'react'
+import Script from 'next/script'
 import { AuthProvider } from '@/contexts/AuthContext'
 import Navbar from '@/components/Navbar'
 
@@ -9,6 +10,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
       <body>
+        <Script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js" strategy="afterInteractive" />
         <AuthProvider>
           <div className="min-h-screen flex flex-col">
             <Navbar />

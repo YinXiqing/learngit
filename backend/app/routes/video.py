@@ -1,4 +1,5 @@
-import re, uuid, asyncio
+import re, uuid, asyncio, aiofiles
+from app.logger import logger
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
@@ -16,20 +17,21 @@ router = APIRouter(prefix="/api/video", tags=["video"])
 def _ext(fn): return fn.rsplit(".", 1)[-1].lower() if "." in fn else ""
 
 
-def _delete_video_files(video: Video):
+async def _delete_video_files(video: Video):
     """删除视频关联的本地文件（跳过外链）"""
+    loop = asyncio.get_running_loop()
     for f in [video.filename, video.cover_image]:
         if f and not f.startswith("http"):
             p = settings.UPLOAD_FOLDER / f
             if p.exists():
-                p.unlink()
+                await loop.run_in_executor(None, p.unlink)
 
 
 async def _delete_video(db: AsyncSession, video: Video):
     """删除视频：本地文件 + scraped记录 + 数据库记录"""
     from sqlalchemy import delete as sa_delete
     from app.models import ScrapedVideoInfo
-    _delete_video_files(video)
+    await _delete_video_files(video)
     if video.page_url:
         await db.execute(sa_delete(ScrapedVideoInfo).where(ScrapedVideoInfo.source_url == video.page_url))
     await db.delete(video)
@@ -65,7 +67,7 @@ async def _refresh_url_bg(video_id, page_url):
                 await db.execute(update(Video).where(Video.id == video_id).values(source_url=new_url))
                 await db.commit()
     except Exception as e:
-        print(f"[bg] refresh failed {video_id}: {e}")
+        logger.warning("url_refresh_failed", video_id=video_id, error=str(e))
 
 BLOCKED = re.compile(r"^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.0\.0\.0|::1)", re.I)
 
@@ -158,12 +160,14 @@ async def upload_video(title: str = Form(...), description: str = Form(""), tags
     
     # 所有验证通过后再保存文件
     filename = f"{uuid.uuid4().hex}.{_ext(video.filename)}"
-    (settings.UPLOAD_FOLDER / filename).write_bytes(content)
-    
+    async with aiofiles.open(settings.UPLOAD_FOLDER / filename, "wb") as f:
+        await f.write(content)
+
     cover_filename = None
     if cover_content:
         cover_filename = f"cover_{uuid.uuid4().hex}.{_ext(cover.filename)}"
-        (settings.UPLOAD_FOLDER / cover_filename).write_bytes(cover_content)
+        async with aiofiles.open(settings.UPLOAD_FOLDER / cover_filename, "wb") as f:
+            await f.write(cover_content)
     
     record = Video(title=title.strip(), description=description.strip(), tags=tags.strip(),
                    filename=filename, cover_image=cover_filename, file_size=len(content),

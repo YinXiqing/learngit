@@ -10,18 +10,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (localStorage.getItem('token')) fetchProfile()
-    else setLoading(false)
+    const token = localStorage.getItem('token')
+    if (!token) { setLoading(false); return }
+    // 先从缓存恢复用户，消除闪烁
+    const cached = localStorage.getItem('user')
+    if (cached) {
+      try { setUser(JSON.parse(cached)) } catch {}
+    }
+    // 后台验证并刷新
+    fetchProfile().finally(() => setLoading(false))
   }, [])
 
   const fetchProfile = async () => {
     try {
       const res = await api.get('/auth/profile')
       setUser(res.data.user)
+      localStorage.setItem('user', JSON.stringify(res.data.user))
     } catch {
       logout()
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -29,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.post('/auth/login', { username, password })
       localStorage.setItem('token', res.data.access_token)
+      localStorage.setItem('user', JSON.stringify(res.data.user))
       setUser(res.data.user)
       return { success: true }
     } catch (e: any) {
@@ -47,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('user')
     setUser(null)
   }
 
@@ -54,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.put('/auth/profile', data)
       setUser(res.data.user)
+      localStorage.setItem('user', JSON.stringify(res.data.user))
       return { success: true }
     } catch (e: any) {
       return { success: false, error: e.response?.data?.detail || 'Update failed' }

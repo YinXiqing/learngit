@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Integer, String, Text, Boolean, BigInteger, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import bcrypt as _bcrypt
@@ -13,8 +13,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), default="user")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.utcnow())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.utcnow(), onupdate=lambda: datetime.utcnow())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     videos: Mapped[list["Video"]] = relationship("Video", back_populates="author_rel", lazy="select")
 
@@ -52,8 +52,8 @@ class Video(Base):
     source_url: Mapped[str | None] = mapped_column(Text)
     page_url: Mapped[str | None] = mapped_column(Text)
     is_scraped: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.utcnow())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.utcnow(), onupdate=lambda: datetime.utcnow())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     author_rel: Mapped["User"] = relationship("User", back_populates="videos")
 
@@ -83,5 +83,5 @@ class ScrapedVideoInfo(Base):
     video_url: Mapped[str | None] = mapped_column(Text)
     duration: Mapped[int] = mapped_column(Integer, default=0)
     tags: Mapped[str | None] = mapped_column(String(500))
-    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.utcnow())
+    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     status: Mapped[str] = mapped_column(String(20), default="pending")

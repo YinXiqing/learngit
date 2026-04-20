@@ -47,8 +47,8 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
 
 async def get_optional_user(
     request: Request,
-    db: AsyncSession = Depends(get_db),
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: AsyncSession = Depends(get_db),
 ) -> User | None:
     token = get_token_from_request(request, credentials)
     if not token:
