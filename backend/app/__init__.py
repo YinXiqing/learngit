@@ -28,9 +28,4 @@ def create_app() -> FastAPI:
     app.include_router(video_router)
     app.include_router(admin_router)
 
-    @app.on_event("startup")
-    async def startup():
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
     return app

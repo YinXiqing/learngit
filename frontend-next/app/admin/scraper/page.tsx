@@ -21,6 +21,8 @@ export default function AdminScraper() {
   const [previewVideo, setPreviewVideo] = useState<ScrapedVideo | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>({ isOpen: false })
   const [selected, setSelected] = useState<number[]>([])
+  const [previewChecking, setPreviewChecking] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const videoRef = useRef<HTMLVideoElement>(null)

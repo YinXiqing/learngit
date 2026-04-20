@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import VideoPreviewModal from '@/components/VideoPreviewModal'
 import type { Video } from '@/types'
 
 const dur = (s: number | null) => s ? `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` : '00:00'
@@ -33,6 +34,7 @@ function AdminVideosInner() {
   const [selected, setSelected] = useState<number[]>([])
   const [editing, setEditing] = useState<Video | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>({ isOpen: false })
+  const [preview, setPreview] = useState<Video | null>(null)
 
   useEffect(() => { fetchVideos() }, [statusFilter, page, search])
 
@@ -122,12 +124,13 @@ function AdminVideosInner() {
                   <div className="grid grid-cols-12 gap-4 items-center">
                     <div className="col-span-1"><input type="checkbox" checked={selected.includes(v.id)} onChange={() => setSelected(prev => prev.includes(v.id) ? prev.filter(id => id !== v.id) : [...prev, v.id])} className="rounded border-gray-300" /></div>
                     <div className="col-span-5 flex items-center space-x-3">
-                      <div className="relative w-24 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0">
-                        <Link href={`/video/${v.id}`} target="_blank">
+                      <div className="relative w-24 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer" onClick={() => setPreview(v)}>
                           {v.cover_image ? <img src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
-                        </Link>
-                        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">{dur(v.duration)}</div>
-                      </div>
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
+                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" /></svg>
+                          </div>
+                          <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">{dur(v.duration)}</div>
+                        </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-semibold text-gray-900 line-clamp-1"><Link href={`/video/${v.id}`} target="_blank" className="hover:text-primary-600">{v.title}</Link></h3>
                         <p className="text-xs text-gray-500 line-clamp-1">{v.description || '暂无简介'}</p>
@@ -140,7 +143,7 @@ function AdminVideosInner() {
                         <button onClick={() => setConfirm({ isOpen: true, type: 'success', title: '通过审核', message: `确定通过"${v.title}"？`, onConfirm: () => { bulkUpdate('approved', [v.id]); setConfirm({ isOpen: false }) }})} className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">通过</button>
                         <button onClick={() => setConfirm({ isOpen: true, type: 'danger', title: '拒绝视频', message: `确定拒绝"${v.title}"？`, onConfirm: () => { bulkUpdate('rejected', [v.id]); setConfirm({ isOpen: false }) }})} className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">拒绝</button>
                       </>}
-                      <Link href={`/video/${v.id}`} target="_blank" className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">查看</Link>
+                      <button onClick={() => setPreview(v)} className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">预览</button>
                       <button onClick={() => setEditing({...v})} className="p-1 text-gray-400 hover:text-yellow-600">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                       </button>
@@ -186,6 +189,7 @@ function AdminVideosInner() {
       )}
 
       <ConfirmDialog isOpen={confirm.isOpen} onClose={() => setConfirm({ isOpen: false })} onConfirm={confirm.onConfirm} title={confirm.title} message={confirm.message} type={confirm.type} confirmText="确认" cancelText="取消" />
+      {preview && <VideoPreviewModal video={preview} onClose={() => setPreview(null)} />}
     </div>
     </RequireAdmin>
   )

@@ -1,2 +1,139 @@
 INFO:     Will watch for changes in these directories: ['/home/alan/videoplatform/backend']
 ERROR:    [Errno 98] Address already in use
+INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+INFO:     Started parent process [8456]
+INFO:     Started server process [8461]
+INFO:     Waiting for application startup.
+INFO:     Started server process [8462]
+INFO:     Waiting for application startup.
+INFO:     Started server process [8463]
+INFO:     Waiting for application startup.
+INFO:     Started server process [8460]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:47796 - "GET /api/video/list HTTP/1.1" 200 OK
+INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+INFO:     Started parent process [8520]
+INFO:     Started server process [8528]
+INFO:     Waiting for application startup.
+INFO:     Started server process [8529]
+INFO:     Waiting for application startup.
+INFO:     Started server process [8527]
+INFO:     Started server process [8526]
+INFO:     Waiting for application startup.
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:48222 - "GET /api/video/list HTTP/1.1" 200 OK
+INFO:     Received SIGTERM, exiting.
+INFO:     Terminated child process [8526]
+INFO:     Terminated child process [8527]
+INFO:     Terminated child process [8528]
+INFO:     Terminated child process [8529]
+INFO:     Waiting for child process [8526]
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8528]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8529]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8527]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8526]
+INFO:     Waiting for child process [8527]
+INFO:     Waiting for child process [8528]
+INFO:     Waiting for child process [8529]
+INFO:     Stopping parent process [8520]
+INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+INFO:     Started parent process [8725]
+INFO:     Started server process [8728]
+INFO:     Waiting for application startup.
+INFO:     Started server process [8727]
+INFO:     Waiting for application startup.
+INFO:     Started server process [8729]
+INFO:     Waiting for application startup.
+INFO:     Started server process [8730]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     Received SIGTERM, exiting.
+INFO:     Terminated child process [8727]
+INFO:     Terminated child process [8728]
+INFO:     Terminated child process [8729]
+INFO:     Terminated child process [8730]
+INFO:     Waiting for child process [8727]
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8728]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8727]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8730]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8729]
+INFO:     Waiting for child process [8728]
+INFO:     Waiting for child process [8729]
+INFO:     Waiting for child process [8730]
+INFO:     Stopping parent process [8725]
+INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+INFO:     Started parent process [8942]
+INFO:     Started server process [8948]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8949]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8951]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8950]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:48474 - "GET /api/video/list HTTP/1.1" 200 OK
+INFO:     Received SIGTERM, exiting.
+INFO:     Terminated child process [8948]
+INFO:     Terminated child process [8949]
+INFO:     Terminated child process [8950]
+INFO:     Terminated child process [8951]
+INFO:     Waiting for child process [8948]
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8949]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8951]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8948]
+INFO:     Waiting for child process [8949]
+INFO:     Waiting for child process [8950]
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8950]
+INFO:     Waiting for child process [8951]
+INFO:     Stopping parent process [8942]

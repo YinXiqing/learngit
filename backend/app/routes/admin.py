@@ -7,7 +7,6 @@ from sqlalchemy import select, or_, func, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 import aiohttp
-import requests
 from bs4 import BeautifulSoup
 import re
 from app.deps import get_db, get_current_user, require_admin
@@ -60,10 +59,10 @@ async def update_user(user_id: int, data: UserUpdate,
 async def delete_user(user_id: int, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
     if user_id == admin.id:
         raise HTTPException(400, "Cannot delete your own account")
-    await db.execute(delete(Video).where(Video.user_id == user_id))
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(404)
+    await db.execute(delete(Video).where(Video.user_id == user_id))
     await db.delete(user)
     await db.commit()
     return {"message": "User deleted successfully"}
@@ -169,12 +168,13 @@ def _ydlp_extract(url):
     return title, cover_url, video_url, duration
 
 
-def _bs_tags(url):
+async def _bs_tags(url):
     try:
         proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY") or None
-        proxies = {"http": proxy, "https": proxy} if proxy else None
-        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10, verify=False, proxies=proxies)
-        soup = BeautifulSoup(r.content, "html.parser")
+        async with aiohttp.ClientSession() as s:
+            async with s.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=aiohttp.ClientTimeout(total=10), proxy=proxy, ssl=False) as r:
+                content = await r.read()
+        soup = BeautifulSoup(content, "html.parser")
         tags = [t.get("content", "").strip() for t in soup.find_all("meta", property="video:tag") if t.get("content")]
         if not tags:
             kw = soup.find("meta", attrs={"name": "keywords"})
@@ -192,10 +192,10 @@ class ScrapeIn(BaseModel):
 async def scrape_video(data: ScrapeIn, db: AsyncSession = Depends(get_db),
                        admin: User = Depends(require_admin)):
     url = data.url.strip()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     try:
         title, cover_url, video_url, duration = await loop.run_in_executor(None, _ydlp_extract, url)
-        tags_str = await loop.run_in_executor(None, _bs_tags, url)
+        tags_str = await _bs_tags(url)
     except Exception as e:
         raise HTTPException(500, f"抓取失败: {e}")
 
@@ -220,12 +220,12 @@ async def scrape_videos_batch(data: BatchScrapeIn, db: AsyncSession = Depends(ge
     urls = [u.strip() for u in data.urls if u.strip()][:20]
     if not urls:
         raise HTTPException(400, "No valid URLs provided")
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     success, failed = 0, 0
     for url in urls:
         try:
             title, cover_url, video_url, duration = await loop.run_in_executor(None, _ydlp_extract, url)
-            tags_str = await loop.run_in_executor(None, _bs_tags, url)
+            tags_str = await _bs_tags(url)
             scraped = ScrapedVideoInfo(source_url=url, title=title, description="",
                                        video_url=video_url, cover_url=cover_url,
                                        duration=duration, tags=tags_str)
@@ -254,14 +254,18 @@ async def get_scraped_videos(page: int = 1, per_page: int = 20, status: str = "p
             "total": total, "pages": -(-total // per_page), "current_page": page, "per_page": per_page}
 
 
+class ImportIn(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+
 @router.post("/scraped/{scraped_id}/import", status_code=201)
-async def import_scraped_video(scraped_id: int, data: dict = {},
+async def import_scraped_video(scraped_id: int, data: ImportIn = ImportIn(),
                                db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
     scraped = await db.get(ScrapedVideoInfo, scraped_id)
     if not scraped:
         raise HTTPException(404)
-    video = Video(title=data.get("title", scraped.title) or "Untitled",
-                  description=data.get("description", scraped.description) or "",
+    video = Video(title=data.title or scraped.title or "Untitled",
+                  description=data.description if data.description is not None else (scraped.description or ""),
                   tags=scraped.tags or "", source_url=scraped.video_url, page_url=scraped.source_url,
                   cover_image=scraped.cover_url, duration=scraped.duration or 0,
                   is_scraped=True, user_id=admin.id, status="approved",
@@ -280,6 +284,7 @@ async def import_scraped_video(scraped_id: int, data: dict = {},
 
 async def _download_cover(video_id: int, cover_url: str):
     try:
+        import aiofiles
         from app.database import AsyncSessionLocal
         ext = cover_url.split("?")[0].rsplit(".", 1)[-1].lower()
         if ext not in ("jpg", "jpeg", "png", "webp", "gif"): ext = "jpg"
@@ -287,7 +292,9 @@ async def _download_cover(video_id: int, cover_url: str):
         async with aiohttp.ClientSession() as s:
             async with s.get(cover_url, headers={"User-Agent": "Mozilla/5.0"}, ssl=False) as r:
                 r.raise_for_status()
-                (settings.UPLOAD_FOLDER / fname).write_bytes(await r.read())
+                content = await r.read()
+        async with aiofiles.open(settings.UPLOAD_FOLDER / fname, "wb") as f:
+            await f.write(content)
         async with AsyncSessionLocal() as db:
             await db.execute(update(Video).where(Video.id == video_id).values(cover_image=fname))
             await db.commit()
@@ -295,13 +302,16 @@ async def _download_cover(video_id: int, cover_url: str):
         print(f"[bg] cover download failed: {e}")
 
 
+class ScrapedUpdate(BaseModel):
+    title: Optional[str] = None
+
 @router.put("/scraped/{scraped_id}")
-async def update_scraped(scraped_id: int, data: dict,
+async def update_scraped(scraped_id: int, data: ScrapedUpdate,
                          db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
     scraped = await db.get(ScrapedVideoInfo, scraped_id)
     if not scraped:
         raise HTTPException(404)
-    if "title" in data: scraped.title = data["title"].strip()
+    if data.title is not None: scraped.title = data.title.strip()
     await db.commit()
     return {"message": "Updated", "title": scraped.title}
 

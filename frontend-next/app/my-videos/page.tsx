@@ -4,7 +4,10 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import VideoPreviewModal from '@/components/VideoPreviewModal'
 import type { Video } from '@/types'
+
+declare global { interface Window { Hls: any } }
 
 const dur = (s: number | null) => s ? `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` : '00:00'
 const fmt = (v: number) => v >= 1e6 ? `${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `${(v/1e3).toFixed(1)}K` : String(v)
@@ -28,6 +31,7 @@ export default function MyVideos() {
   const [activeTab, setActiveTab] = useState('all')
   const [editing, setEditing] = useState<EditingVideo | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>({ isOpen: false })
+  const [preview, setPreview] = useState<Video | null>(null)
 
   useEffect(() => { fetchVideos() }, [])
 
@@ -89,14 +93,15 @@ export default function MyVideos() {
                 <div key={v.id} className="px-6 py-4 hover:bg-gray-50">
                   <div className="grid grid-cols-12 gap-4 items-center">
                     <div className="col-span-6 flex items-center space-x-4">
-                      <div className="relative w-32 h-20 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0">
-                        <Link href={`/video/${v.id}`}>
+                      <div className="relative w-32 h-20 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer" onClick={() => setPreview(v)}>
                           {v.cover_image
                             ? <img src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} className="w-full h-full object-cover" />
                             : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
-                        </Link>
-                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">{dur(v.duration)}</div>
-                      </div>
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
+                            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" /></svg>
+                          </div>
+                          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">{dur(v.duration)}</div>
+                        </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-2"><Link href={`/video/${v.id}`} className="hover:text-primary-600">{v.title}</Link></h3>
                         <p className="text-xs text-gray-500 line-clamp-2">{v.description || '暂无简介'}</p>
@@ -108,7 +113,7 @@ export default function MyVideos() {
                       <div>{new Date(v.created_at).toLocaleDateString()}</div>
                     </div>
                     <div className="col-span-2 flex items-center justify-center space-x-2">
-                      <Link href={`/video/${v.id}`} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">查看</Link>
+                      <button onClick={() => setPreview(v)} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">预览</button>
                       <button onClick={() => setEditing({...v, tags: v.tags ?? []})} className="p-1.5 text-gray-400 hover:text-blue-600">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                       </button>
@@ -147,6 +152,7 @@ export default function MyVideos() {
       )}
 
       <ConfirmDialog isOpen={confirm.isOpen} onClose={() => setConfirm({ isOpen: false })} onConfirm={confirm.onConfirm} title={confirm.title} message={confirm.message} type={confirm.type} confirmText="确认" cancelText="取消" />
+      {preview && <VideoPreviewModal video={preview} onClose={() => setPreview(null)} />}
     </div>
     </RequireAuth>
   )
