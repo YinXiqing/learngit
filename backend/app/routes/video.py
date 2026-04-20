@@ -483,3 +483,21 @@ async def clear_history(db: AsyncSession = Depends(get_db), user: User = Depends
     await db.execute(sa_delete(WatchHistory).where(WatchHistory.user_id == user.id))
     await db.commit()
     return {"message": "History cleared"}
+
+
+@router.get("/download/{video_id}")
+async def download_video(video_id: int, db: AsyncSession = Depends(get_db),
+                         user: Optional[User] = Depends(get_optional_user)):
+    video = await db.get(Video, video_id)
+    if not video or video.is_scraped:
+        raise HTTPException(404)
+    if video.status != "approved":
+        if not user or (user.id != video.user_id and user.role != "admin"):
+            raise HTTPException(403)
+    safe_title = re.sub(r'[\\/:*?"<>|]', '', video.title).strip() or f'video_{video_id}'
+    path = settings.UPLOAD_FOLDER / video.filename
+    if not path.exists():
+        raise HTTPException(404)
+    filename = f"{safe_title}.mp4"
+    return FileResponse(path, filename=filename, media_type="video/mp4",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"'})

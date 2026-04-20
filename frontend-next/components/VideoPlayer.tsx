@@ -8,6 +8,16 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import Toast from '@/components/Toast'
 import type { Video } from '@/types'
 
+function DownloadButton({ videoId }: { videoId: number }) {
+  return (
+    <a href={`/api/video/download/${videoId}`}
+      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-[#2a2a2a] hover:bg-gray-200 dark:hover:bg-[#333] text-gray-700 dark:text-gray-300 text-sm rounded-lg transition-colors">
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+      下载
+    </a>
+  )
+}
+
 declare global { interface Window { Hls: any } }
 
 const dur = (s: number | null) => s ? `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` : '00:00'
@@ -158,10 +168,13 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
 
         <div className="bg-white dark:bg-[#1f1f1f] rounded-xl shadow-sm mt-6 p-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">{video.title}</h1>
-          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-4 mb-4">
-            <span>{fmt(video.view_count)} 次观看</span><span>•</span>
-            <span>{video.created_at.slice(0, 10)}</span><span>•</span>
-            <span>{dur(video.duration)}</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 space-x-4">
+              <span>{fmt(video.view_count)} 次观看</span><span>•</span>
+              <span>{video.created_at.slice(0, 10)}</span><span>•</span>
+              <span>{dur(video.duration)}</span>
+            </div>
+            <DownloadButton videoId={video.id} />
           </div>
           {isAdmin() && video.status === 'pending' && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">

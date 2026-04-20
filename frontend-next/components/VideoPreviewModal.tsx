@@ -74,7 +74,7 @@ export default function VideoPreviewModal({ video, onClose }: { video: Video; on
     }
 
     setTimeout(load, 100)
-  }, [video])
+  }, [video.id])
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={onClose}>

@@ -61,7 +61,7 @@ export default function AdminScraper() {
       })
     }, 200)
     return () => { clearTimeout(t); if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null } }
-  }, [previewVideo])
+  }, [previewVideo?.id, previewVideo?.video_url])
 
   const fetchScraped = async () => {
     try { const res = await api.get('/admin/scraped'); setScrapedVideos(res.data.scraped_videos) } catch {}
