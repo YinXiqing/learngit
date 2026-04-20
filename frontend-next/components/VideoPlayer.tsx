@@ -19,6 +19,7 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
   const { isAdmin, user } = useAuth()
   const [video, setVideo] = useState<Video>(initialVideo)
   const [isPlaying, setIsPlaying] = useState(true)
+  const [videoReady, setVideoReady] = useState(false)
   const [playError, setPlayError] = useState(false)
   const [relatedVideos, setRelatedVideos] = useState<Video[]>([])
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
@@ -32,19 +33,19 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
     window.scrollTo(0, 0)
     fetchRelated()
     if (user) api.post(`/video/history/${video.id}`).catch(() => {})
+    setVideoReady(false)
   }, [video.id])
 
   useEffect(() => {
-    if (!isPlaying || !video?.is_scraped) return
+    if (!isPlaying) return
     const initHls = (url: string) => {
       const el = videoRef.current
       if (!el || !window.Hls) return
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
-      const proxied = `/api/video/proxy?url=${encodeURIComponent(url)}`
       if (window.Hls.isSupported()) {
         const hls = new window.Hls({ enableWorker: true })
         hlsRef.current = hls
-        hls.loadSource(proxied)
+        hls.loadSource(url)
         hls.attachMedia(el)
         hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
           const saved = parseFloat(localStorage.getItem(`vp_${video.id}`) ?? '0')
@@ -55,20 +56,47 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
         hls.on(window.Hls.Events.ERROR, (_: any, d: any) => {
           if (d.fatal) {
             hls.destroy(); hlsRef.current = null
-            fetch(`/api/video/refresh-url/${video.id}`)
-              .then(r => r.json())
-              .then(data => { if (data.video_url) initHls(data.video_url); else setPlayError(true) })
-              .catch(() => setPlayError(true))
+            if (video.is_scraped) {
+              fetch(`/api/video/refresh-url/${video.id}`).then(r => r.json())
+                .then(data => {
+                  if (data.video_url) {
+                    const proxied = `/api/video/proxy?url=${encodeURIComponent(data.video_url)}`
+                    initHls(proxied)
+                  } else setPlayError(true)
+                })
+                .catch(() => setPlayError(true))
+            } else { setPlayError(true) }
           }
         })
       } else if (el.canPlayType('application/vnd.apple.mpegurl')) {
-        el.src = proxied; el.play().catch(() => {})
+        el.src = url; el.play().catch(() => {})
       }
     }
-    const url = video.video_url || video.source_url
-    if (!url) return
-    const t = setTimeout(() => initHls(url), 100)
-    return () => { clearTimeout(t); hlsRef.current?.destroy(); hlsRef.current = null }
+
+    // 调用 stream 接口获取播放地址
+    api.get(`/video/stream/${video.id}`)
+      .then(({ data }) => {
+        if (data.is_external || data.is_hls) {
+          const url = data.is_external
+            ? `/api/video/proxy?url=${encodeURIComponent(data.video_url)}`
+            : data.video_url
+          setTimeout(() => initHls(url), 100)
+        } else {
+          // 纯 MP4
+          const el = videoRef.current
+          if (el) {
+            el.src = data.video_url
+            const saved = parseFloat(localStorage.getItem(`vp_${video.id}`) ?? '0')
+            el.onloadedmetadata = () => { if (saved > 5) el.currentTime = saved }
+            el.ontimeupdate = () => localStorage.setItem(`vp_${video.id}`, String(el.currentTime))
+            el.play().catch(() => {})
+          }
+        }
+        setVideoReady(false)
+      })
+      .catch(() => setPlayError(true))
+
+    return () => { hlsRef.current?.destroy(); hlsRef.current = null }
   }, [isPlaying, video])
 
   const fetchRelated = useCallback(async () => {
@@ -98,20 +126,24 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
       <div className="lg:col-span-2">
         <div className="bg-black rounded-xl overflow-hidden aspect-video relative">
           {isPlaying ? (
-            video.is_scraped
-              ? playError
-                ? <div className="w-full h-full flex flex-col items-center justify-center text-white gap-3">
-                    <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
-                    <p className="text-gray-300 text-sm">视频加载失败</p>
-                    <button onClick={() => { setPlayError(false); setIsPlaying(false); setTimeout(() => setIsPlaying(true), 100) }}
-                      className="px-4 py-1.5 bg-white dark:bg-[#1f1f1f]/20 hover:bg-white dark:bg-[#1f1f1f]/30 rounded-lg text-sm transition-colors">重试</button>
-                  </div>
-                : <video ref={videoRef} controls muted className="w-full h-full object-contain" crossOrigin="anonymous" />
-              : <video controls autoPlay className="w-full h-full object-contain" src={`/api/video/stream/${video.id}`}
-                  onTimeUpdate={e => localStorage.setItem(`vp_${video.id}`, String((e.target as HTMLVideoElement).currentTime))}
-                  onLoadedMetadata={e => { const s = parseFloat(localStorage.getItem(`vp_${video.id}`) ?? '0'); if (s > 5) (e.target as HTMLVideoElement).currentTime = s }}>
-                  您的浏览器不支持视频播放。
-                </video>
+            playError
+              ? <div className="w-full h-full flex flex-col items-center justify-center text-white gap-3">
+                  <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                  <p className="text-gray-300 text-sm">视频加载失败</p>
+                  <button onClick={() => { setPlayError(false); setIsPlaying(false); setTimeout(() => setIsPlaying(true), 100) }}
+                    className="px-4 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors">重试</button>
+                </div>
+              : <>
+                  <video ref={videoRef} controls={videoReady} className="w-full h-full object-contain" crossOrigin="anonymous"
+                    onCanPlay={() => setVideoReady(true)}
+                    onTimeUpdate={e => localStorage.setItem(`vp_${video.id}`, String((e.target as HTMLVideoElement).currentTime))}
+                    onLoadedMetadata={e => { const s = parseFloat(localStorage.getItem(`vp_${video.id}`) ?? '0'); if (s > 5) (e.target as HTMLVideoElement).currentTime = s }} />
+                  {!videoReady && (
+                    <div className="absolute inset-0 bg-black flex items-center justify-center pointer-events-none">
+                      <div className="w-10 h-10 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+                    </div>
+                  )}
+                </>
           ) : (
             <div className="relative w-full h-full">
               {video.cover_image ? <Image src={coverSrc} alt={video.title} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 66vw" priority /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}

@@ -45,6 +45,37 @@ async def _extract_cover(video_path, cover_filename) -> bool:
     except Exception:
         return False
 
+async def _transcode_hls(video_id: int, src_path):
+    """后台异步将 MP4 转码为 HLS"""
+    try:
+        import subprocess
+        from app.database import AsyncSessionLocal
+        hls_dir = settings.UPLOAD_FOLDER / "hls" / str(video_id)
+        hls_dir.mkdir(parents=True, exist_ok=True)
+        m3u8_path = hls_dir / "index.m3u8"
+        loop = asyncio.get_running_loop()
+        def _run():
+            r = subprocess.run([
+                "ffmpeg", "-y", "-i", str(src_path),
+                "-codec:", "copy",
+                "-start_number", "0",
+                "-hls_time", "10",
+                "-hls_list_size", "0",
+                "-hls_segment_filename", str(hls_dir / "seg%03d.ts"),
+                "-f", "hls", str(m3u8_path)
+            ], capture_output=True, timeout=600)
+            return r.returncode == 0
+        ok = await loop.run_in_executor(None, _run)
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(Video).where(Video.id == video_id).values(hls_ready=ok))
+            await db.commit()
+        if ok:
+            logger.info("hls_ready", video_id=video_id)
+        else:
+            logger.warning("hls_transcode_failed", video_id=video_id)
+    except Exception as e:
+        logger.error("hls_transcode_error", video_id=video_id, error=str(e))
+
 
 async def _delete_video_files(video: Video):
     """删除视频关联的本地文件（跳过外链）"""
@@ -54,6 +85,11 @@ async def _delete_video_files(video: Video):
             p = settings.UPLOAD_FOLDER / f
             if p.exists():
                 await loop.run_in_executor(None, p.unlink)
+    # 清理 HLS 目录
+    hls_dir = settings.UPLOAD_FOLDER / "hls" / str(video.id)
+    if hls_dir.exists():
+        import shutil
+        await loop.run_in_executor(None, shutil.rmtree, hls_dir)
 
 
 async def _delete_video(db: AsyncSession, video: Video):
@@ -75,6 +111,28 @@ async def _check_url(url):
     except Exception:
         return False
 
+async def _get_fresh_url(page_url: str) -> str:
+    if not page_url:
+        return ""
+    try:
+        import yt_dlp
+        ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True, "socket_timeout": 15}
+        def _run():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(page_url, download=False)
+            fmts = info.get("formats", [])
+            m3u8 = [f for f in fmts if f.get("protocol") in ("m3u8", "m3u8_native") and f.get("url")]
+            direct = [f for f in fmts if f.get("url") and f.get("vcodec") != "none"]
+            url = (max(m3u8, key=lambda f: f.get("height") or 0)["url"] if m3u8
+                   else max(direct, key=lambda f: f.get("height") or 0)["url"] if direct
+                   else info.get("url", ""))
+            if url.endswith(".m3u") and not url.endswith(".m3u8"):
+                url += "8"
+            return url
+        return await asyncio.get_running_loop().run_in_executor(None, _run)
+    except Exception:
+        return ""
+
 async def _refresh_url_bg(video_id, page_url):
     try:
         import yt_dlp
@@ -83,7 +141,7 @@ async def _refresh_url_bg(video_id, page_url):
         def _run():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 return ydl.extract_info(page_url, download=False)
-        info = await asyncio.get_event_loop().run_in_executor(None, _run)
+        info = await asyncio.get_running_loop().run_in_executor(None, _run)
         fmts = info.get("formats", [])
         m3u8 = [f for f in fmts if f.get("protocol") in ("m3u8", "m3u8_native") and f.get("url")]
         direct = [f for f in fmts if f.get("url") and f.get("vcodec") != "none"]
@@ -154,7 +212,7 @@ async def stream_video(video_id: int, db: AsyncSession = Depends(get_db),
                 WatchHistory.video_id == video_id,
                 WatchHistory.watched_at >= datetime.utcnow() - timedelta(hours=1)
             )
-        )).scalar_one_or_none()
+        )).scalars().first()
         if recent:
             should_count = False
     if should_count:
@@ -162,10 +220,44 @@ async def stream_video(video_id: int, db: AsyncSession = Depends(get_db),
         await db.commit()
     if video.is_scraped and video.source_url:
         return {"is_external": True, "video_url": video.source_url}
+    # HLS 就绪时返回 m3u8
+    if video.hls_ready:
+        return {"is_hls": True, "video_url": f"/api/video/hls/{video_id}/index.m3u8"}
+    # 降级返回原始 MP4 路径
     path = settings.UPLOAD_FOLDER / video.filename
     if not path.exists():
         raise HTTPException(404, "File not found")
+    return {"is_mp4": True, "video_url": f"/api/video/file/{video_id}"}
+
+
+@router.get("/file/{video_id}")
+async def serve_file(video_id: int, db: AsyncSession = Depends(get_db),
+                     user: Optional[User] = Depends(get_optional_user)):
+    video = await db.get(Video, video_id)
+    if not video or video.is_scraped:
+        raise HTTPException(404)
+    if video.status not in ("approved", "pending"):
+        if not user or (user.id != video.user_id and user.role != "admin"):
+            raise HTTPException(403)
+    path = settings.UPLOAD_FOLDER / video.filename
+    if not path.exists():
+        raise HTTPException(404)
     return FileResponse(path, media_type="video/mp4")
+
+
+@router.get("/hls/{video_id}/{filename}")
+async def serve_hls(video_id: int, filename: str, db: AsyncSession = Depends(get_db),                    user: Optional[User] = Depends(get_optional_user)):
+    video = await db.get(Video, video_id)
+    if not video or not video.hls_ready:
+        raise HTTPException(404)
+    if video.status not in ("approved", "pending"):
+        if not user or (user.id != video.user_id and user.role != "admin"):
+            raise HTTPException(403)
+    path = settings.UPLOAD_FOLDER / "hls" / str(video_id) / filename
+    if not path.exists():
+        raise HTTPException(404)
+    ct = "application/vnd.apple.mpegurl" if filename.endswith(".m3u8") else "video/mp2t"
+    return FileResponse(path, media_type=ct)
 
 
 @router.get("/cover/{video_id}")
@@ -233,7 +325,10 @@ async def upload_video(title: str = Form(...), description: str = Form(""), tags
                 p = settings.UPLOAD_FOLDER / f
                 if p.exists(): p.unlink()
         raise HTTPException(500, "Upload failed, please try again")
-    return {"message": "Video uploaded successfully. Awaiting admin approval.", "video": record.to_dict()}
+    response = {"message": "Video uploaded successfully. Awaiting admin approval.", "video": record.to_dict()}
+    # 后台异步转码（不阻塞响应）
+    asyncio.create_task(_transcode_hls(record.id, settings.UPLOAD_FOLDER / filename))
+    return response
 
 
 @router.get("/refresh-url/{video_id}")
@@ -247,7 +342,7 @@ async def refresh_video_url(video_id: int, db: AsyncSession = Depends(get_db)):
         def _run():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 return ydl.extract_info(video.page_url, download=False)
-        info = await asyncio.get_event_loop().run_in_executor(None, _run)
+        info = await asyncio.get_running_loop().run_in_executor(None, _run)
         fmts = info.get("formats", [])
         m3u8 = [f for f in fmts if f.get("protocol") in ("m3u8", "m3u8_native") and f.get("url")]
         direct = [f for f in fmts if f.get("url") and f.get("vcodec") != "none"]

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, memo } from 'react'
+import { useState, useRef, memo, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Video } from '@/types'
@@ -16,37 +16,63 @@ function VideoCard({ video, formatViews, formatDuration, priority = false }: {
   const hlsRef = useRef<any>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const startHls = (url: string) => {
-    if (!window.Hls?.isSupported() || hlsRef.current) return
-    const hls = new window.Hls({ enableWorker: true, maxBufferLength: 8, startLevel: 0 })
-    hlsRef.current = hls
-    hls.loadSource(`/api/video/proxy?url=${encodeURIComponent(url)}`)
-    const attach = () => {
-      if (videoRef.current) {
-        hls.attachMedia(videoRef.current)
-        hls.on(window.Hls.Events.MANIFEST_PARSED, () => videoRef.current?.play().catch(() => {}))
-        hls.on(window.Hls.Events.ERROR, (_: any, d: any) => {
-          if (d.fatal) { hls.destroy(); hlsRef.current = null }
-        })
-      } else setTimeout(attach, 20)
+  const pendingUrl = useRef<string | null>(null)
+  const isHoveredRef = useRef(false)
+
+  const tryStartHls = (url: string, retryCount = 0) => {
+    const doStart = (el: HTMLVideoElement) => {
+      if (!window.Hls?.isSupported() || hlsRef.current) return
+      const src = url.startsWith('/') ? url : `/api/video/proxy?url=${encodeURIComponent(url)}`
+      const hls = new window.Hls({ enableWorker: true, maxBufferLength: 8, startLevel: 0 })
+      hlsRef.current = hls
+      hls.loadSource(src)
+      hls.attachMedia(el)
+      hls.on(window.Hls.Events.MANIFEST_PARSED, () => el.play().catch(() => {}))
+      hls.on(window.Hls.Events.ERROR, (_: any, d: any) => {
+        if (d.fatal && retryCount < 2 && video.is_scraped) {
+          hls.destroy(); hlsRef.current = null
+          fetch(`/api/video/refresh-url/${video.id}`)
+            .then(r => r.json())
+            .then(data => { if (data.video_url && isHoveredRef.current) tryStartHls(data.video_url, retryCount + 1) })
+            .catch(() => {})
+        }
+      })
     }
-    setTimeout(attach, 160)
+    const retry = (n = 10) => {
+      const el = videoRef.current
+      if (el) {
+        window.Hls ? doStart(el) : (() => {
+          const s = document.createElement('script')
+          s.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js'
+          s.onload = () => doStart(el)
+          document.head.appendChild(s)
+        })()
+      } else if (n > 0) setTimeout(() => retry(n - 1), 30)
+    }
+    retry()
   }
 
+  // isHovered 变 true 后，如果 pendingUrl 已就绪则启动
+  useEffect(() => {
+    isHoveredRef.current = isHovered
+    if (isHovered && pendingUrl.current) {
+      tryStartHls(pendingUrl.current)
+    }
+  }, [isHovered])
+
   const handleEnter = () => {
-    if (video.is_scraped && video.source_url && !hlsRef.current) {
-      window.Hls ? startHls(video.source_url) : (() => {
-        const s = document.createElement('script')
-        s.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js'
-        s.onload = () => { if (!hlsRef.current) startHls(video.source_url!) }
-        document.head.appendChild(s)
-      })()
+    pendingUrl.current = null
+    if (video.is_scraped && video.source_url) {
+      pendingUrl.current = video.source_url
+    } else if (video.hls_ready) {
+      pendingUrl.current = `/api/video/hls/${video.id}/index.m3u8`
     }
     timer.current = setTimeout(() => setIsHovered(true), 150)
   }
 
   const handleLeave = () => {
     if (timer.current) clearTimeout(timer.current)
+    isHoveredRef.current = false
     setIsHovered(false); setVideoReady(false)
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
   }
@@ -62,7 +88,9 @@ function VideoCard({ video, formatViews, formatDuration, priority = false }: {
           )}
           {isHovered && (video.is_scraped
             ? <video ref={videoRef} muted loop playsInline className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${videoReady ? 'opacity-100' : 'opacity-0'}`} onCanPlay={() => setVideoReady(true)} />
-            : <video src={`/api/video/stream/${video.id}`} autoPlay muted loop className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${videoReady ? 'opacity-100' : 'opacity-0'}`} onCanPlay={() => setVideoReady(true)} />
+            : video.hls_ready
+              ? <video ref={videoRef} muted loop playsInline className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${videoReady ? 'opacity-100' : 'opacity-0'}`} onCanPlay={() => setVideoReady(true)} />
+              : <video src={`/api/video/file/${video.id}`} autoPlay muted loop className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${videoReady ? 'opacity-100' : 'opacity-0'}`} onCanPlay={() => setVideoReady(true)} />
           )}
           {!isHovered && (video.duration ?? 0) > 0 && (
             <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">{formatDuration?.(video.duration!) ?? '00:00'}</div>

@@ -12,3 +12,4 @@ python-multipart==0.0.20
 yt-dlp==2025.3.31
 slowapi==0.1.9
 structlog==24.4.0
+resend==2.7.0

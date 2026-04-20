@@ -2,6 +2,7 @@
 import { RequireAdmin } from '@/components/AuthGuard'
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useSearchParams, useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -125,7 +126,7 @@ function AdminVideosInner() {
                     <div className="col-span-1"><input type="checkbox" checked={selected.includes(v.id)} onChange={() => setSelected(prev => prev.includes(v.id) ? prev.filter(id => id !== v.id) : [...prev, v.id])} className="rounded border-gray-300 dark:border-gray-600" /></div>
                     <div className="col-span-5 flex items-center space-x-3">
                       <div className="relative w-24 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer" onClick={() => setPreview(v)}>
-                          {v.cover_image ? <img src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
+                          {v.cover_image ? <Image src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} fill className="object-cover" sizes="128px" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
                           <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
                             <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" /></svg>
                           </div>

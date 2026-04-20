@@ -47,6 +47,9 @@ export default function Login() {
             className="w-full py-2.5 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 disabled:opacity-50 transition-colors">
             {loading ? '登录中...' : '登录'}
           </button>
+          <p className="text-center text-sm">
+            <Link href="/forgot-password" className="text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">忘记密码？</Link>
+          </p>
         </form>
       </div>
     </div>

@@ -1,6 +1,7 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import api from '@/lib/api'
 import type { Video } from '@/types'
 
 declare global { interface Window { Hls: any } }
@@ -8,6 +9,7 @@ declare global { interface Window { Hls: any } }
 export default function VideoPreviewModal({ video, onClose }: { video: Video; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -15,24 +17,63 @@ export default function VideoPreviewModal({ video, onClose }: { video: Video; on
   }, [])
 
   useEffect(() => {
-    if (!video.is_scraped) return
-    const url = video.video_url || video.source_url
-    if (!url) return
-    const initHls = (u: string) => {
+    const initHls = (url: string, retryCount = 0) => {
       const el = videoRef.current
-      if (!el || !window.Hls?.isSupported()) return
-      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
-      const hls = new window.Hls({ enableWorker: true })
-      hlsRef.current = hls
-      hls.loadSource(`/api/video/proxy?url=${encodeURIComponent(u)}`)
-      hls.attachMedia(el)
-      hls.on(window.Hls.Events.MANIFEST_PARSED, () => el.play().catch(() => {}))
+      if (!el) return
+      if (window.Hls?.isSupported()) {
+        if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
+        const hls = new window.Hls({ enableWorker: true })
+        hlsRef.current = hls
+        hls.loadSource(url)
+        hls.attachMedia(el)
+        hls.on(window.Hls.Events.MANIFEST_PARSED, () => el.play().catch(() => {}))
+        hls.on(window.Hls.Events.ERROR, (_: any, d: any) => {
+          if (d.fatal) {
+            hls.destroy(); hlsRef.current = null
+            if (retryCount < 2 && video.is_scraped) {
+              fetch(`/api/video/refresh-url/${video.id}`)
+                .then(r => r.json())
+                .then(data => {
+                  if (data.video_url) {
+                    initHls(`/api/video/proxy?url=${encodeURIComponent(data.video_url)}`, retryCount + 1)
+                  } else setError(true)
+                })
+                .catch(() => setError(true))
+            } else setError(true)
+          }
+        })
+      } else if (el.canPlayType('application/vnd.apple.mpegurl')) {
+        el.src = url; el.play().catch(() => {})
+      }
     }
-    if (window.Hls) { setTimeout(() => initHls(url), 100); return }
-    const s = document.createElement('script')
-    s.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js'
-    s.onload = () => setTimeout(() => initHls(url), 100)
-    document.head.appendChild(s)
+
+    const load = () => {
+      if (window.Hls) { doLoad() } else {
+        const s = document.createElement('script')
+        s.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js'
+        s.onload = doLoad
+        document.head.appendChild(s)
+      }
+    }
+
+    const doLoad = () => {
+      api.get(`/video/stream/${video.id}`)
+        .then(({ data }) => {
+          const el = videoRef.current
+          if (!el) return
+          if (data.is_external) {
+            initHls(`/api/video/proxy?url=${encodeURIComponent(data.video_url)}`)
+          } else if (data.is_hls) {
+            initHls(data.video_url)
+          } else if (data.is_mp4) {
+            el.src = data.video_url
+            el.play().catch(() => {})
+          }
+        })
+        .catch(() => setError(true))
+    }
+
+    setTimeout(load, 100)
   }, [video])
 
   return (
@@ -47,10 +88,10 @@ export default function VideoPreviewModal({ video, onClose }: { video: Video; on
             </button>
           </div>
         </div>
-        <div className="aspect-video bg-black">
-          {video.is_scraped
-            ? <video ref={videoRef} controls muted className="w-full h-full object-contain" crossOrigin="anonymous" />
-            : <video controls autoPlay className="w-full h-full object-contain" src={`/api/video/stream/${video.id}`} />
+        <div className="aspect-video bg-black flex items-center justify-center">
+          {error
+            ? <p className="text-gray-400 text-sm">视频加载失败</p>
+            : <video ref={videoRef} controls className="w-full h-full object-contain" crossOrigin="anonymous" />
           }
         </div>
       </div>

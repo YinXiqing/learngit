@@ -24,6 +24,7 @@ export interface Video {
   video_url: string | null
   page_url: string | null
   is_scraped: boolean
+  hls_ready: boolean
   created_at: string
 }
 

@@ -2,6 +2,7 @@
 import { RequireAdmin } from '@/components/AuthGuard'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import api from '@/lib/api'
 import type { Video } from '@/types'
 
@@ -77,9 +78,9 @@ export default function AdminDashboard() {
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {recentVideos.map(v => (
                 <div key={v.id} className="py-4 flex items-center space-x-4">
-                  <div className="w-24 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0">
+                  <div className="relative w-24 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0">
                     {v.cover_image
-                      ? <img src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} className="w-full h-full object-cover" />
+                      ? <Image src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} fill className="object-cover" sizes="128px" />
                       : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
                   </div>
                   <div className="flex-1 min-w-0">

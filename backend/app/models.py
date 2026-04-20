@@ -52,6 +52,7 @@ class Video(Base):
     source_url: Mapped[str | None] = mapped_column(Text)
     page_url: Mapped[str | None] = mapped_column(Text)
     is_scraped: Mapped[bool] = mapped_column(Boolean, default=False)
+    hls_ready: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
@@ -68,8 +69,19 @@ class Video(Base):
             "author": self.author_rel.username if self.author_rel else None,
             "source_url": self.source_url, "video_url": self.source_url,
             "page_url": self.page_url, "is_scraped": self.is_scraped,
+            "hls_ready": self.hls_ready,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class WatchHistory(Base):

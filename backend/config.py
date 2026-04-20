@@ -23,6 +23,10 @@ class Settings(BaseSettings):
         "http://192.168.1.101:3000",
     ]
 
+    RESEND_API_KEY: str = ""
+    RESEND_FROM: str = "noreply@resend.dev"
+    FRONTEND_URL: str = "http://localhost:3000"
+
     class Config:
         env_file = ".env"
         extra = "ignore"
