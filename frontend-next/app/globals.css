@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+button, a, [role="button"], select, label[for], input[type="checkbox"], input[type="radio"] {
+  cursor: pointer;
+}
+
+@theme {
+  --color-primary-50: #fff1f2;
+  --color-primary-100: #ffe4e6;
+  --color-primary-200: #fecdd3;
+  --color-primary-300: #fda4af;
+  --color-primary-400: #fb7185;
+  --color-primary-500: #f43f5e;
+  --color-primary-600: #e11d48;
+  --color-primary-700: #be123c;
+  --color-primary-800: #9f1239;
+  --color-primary-900: #881337;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900;
+}
+
+.btn-primary {
+  @apply bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors;
+}
+
+.card {
+  @apply bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden;
+}

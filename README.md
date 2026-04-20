@@ -1,144 +1,138 @@
 # 轻量级视频平台 (Video Platform)
 
-一个基于 React + Flask 的现代化视频分享平台，具有简约美观的界面设计和完善的功能。
-
-## 🌟 功能特性
-
-### 前端功能
-- ✅ 响应式设计，支持手机、平板、PC
-- ✅ 视频搜索（按标题、作者、简介）
-- ✅ 视频浏览和播放
-- ✅ 用户注册和登录
-- ✅ 视频上传（带进度条）
-- ✅ 个人视频管理
-
-### 后端功能
-- ✅ JWT 认证
-- ✅ 用户管理（CRUD）
-- ✅ 视频管理（CRUD、审核）
-- ✅ 视频抓取（从外部网站）
-- ✅ 后台管理系统
-
-### 安全特性
-- ✅ SQL 注入防护（SQLAlchemy ORM）
-- ✅ XSS 防护（输入验证）
-- ✅ 文件上传类型验证
-- ✅ JWT Token 认证
+一个基于 Next.js + FastAPI 的现代化视频分享平台。
 
 ## 🛠 技术栈
 
 ### 前端
-- React 18
-- React Router 6
-- Tailwind CSS
+- Next.js 16 + React 19
+- TypeScript
+- Tailwind CSS 4
 - Axios
 
 ### 后端
-- Python 3.8+
-- Flask 2.3
-- Flask-SQLAlchemy
-- Flask-JWT-Extended
-- Flask-CORS
-- BeautifulSoup4
+- Python 3.12
+- FastAPI + Uvicorn（异步）
+- SQLAlchemy 2.0（asyncio）
+- PostgreSQL（asyncpg）
+- python-jose（JWT）
+- bcrypt
+- yt-dlp + BeautifulSoup4（视频抓取）
 
 ## 📁 项目结构
 
 ```
 videoplatform/
-├── backend/                 # Flask 后端
+├── service.sh               # 服务管理脚本
+├── backend/
 │   ├── app/
-│   │   ├── __init__.py
-│   │   ├── models.py       # 数据库模型
+│   │   ├── __init__.py      # FastAPI 应用工厂
+│   │   ├── models.py        # 数据库模型（User, Video, ScrapedVideoInfo）
+│   │   ├── database.py      # 异步数据库引擎
+│   │   ├── deps.py          # 依赖注入
 │   │   └── routes/
-│   │       ├── auth.py     # 认证路由
-│   │       ├── video.py    # 视频路由
-│   │       └── admin.py    # 管理路由
-│   ├── uploads/            # 上传文件存储
-│   ├── database/           # SQLite 数据库
-│   ├── config.py         # 配置文件
-│   ├── requirements.txt  # Python 依赖
-│   └── run.py            # 启动脚本
+│   │       ├── auth.py      # 认证路由
+│   │       ├── video.py     # 视频路由
+│   │       └── admin.py     # 管理路由
+│   ├── uploads/             # 上传文件存储
+│   ├── config.py            # 配置（pydantic-settings）
+│   ├── requirements.txt
+│   └── run.py               # uvicorn 启动入口
 │
-└── frontend/               # React 前端
-    ├── public/
-    ├── src/
-    │   ├── components/     # 公共组件
-    │   ├── contexts/       # React Context
-    │   ├── pages/          # 页面组件
-    │   │   └── admin/      # 管理后台页面
-    │   ├── App.js
-    │   └── index.js
-    ├── package.json
-    ├── tailwind.config.js
-    └── postcss.config.js
+└── frontend-next/
+    ├── app/                 # Next.js App Router
+    │   ├── page.tsx         # 首页
+    │   ├── login/
+    │   ├── register/
+    │   ├── profile/
+    │   ├── upload/
+    │   ├── search/
+    │   ├── my-videos/
+    │   ├── video/[id]/
+    │   └── admin/
+    │       ├── page.tsx
+    │       ├── users/
+    │       ├── videos/
+    │       └── scraper/
+    ├── components/          # 公共组件
+    ├── contexts/            # AuthContext
+    ├── lib/                 # API 工具
+    └── types/
 ```
 
 ## 🚀 快速开始
 
-### 1. 启动后端
+### 前置条件
+
+- PostgreSQL 数据库，创建数据库和用户：
+  ```sql
+  CREATE USER videoplatform WITH PASSWORD 'videoplatform';
+  CREATE DATABASE videoplatform OWNER videoplatform;
+  ```
+
+### 1. 配置后端环境变量
+
+编辑 `backend/.env`，按需修改数据库连接等配置：
+
+```env
+DATABASE_URL=postgresql+asyncpg://videoplatform:videoplatform@localhost/videoplatform
+SECRET_KEY=your-secret-key
+JWT_SECRET_KEY=your-jwt-secret-key
+```
+
+### 2. 启动后端
 
 ```bash
-# 在项目根目录创建并激活后端虚拟环境
-uv venv backend/.venv
-source backend/.venv/bin/activate
-
-# 安装后端依赖并启动后端
 cd backend
+uv venv .venv
+source .venv/bin/activate
 uv pip install -r requirements.txt
 python run.py
 ```
 
-后端服务将在 http://localhost:5000 启动
+后端 API 服务将在 http://localhost:5000 启动，API 文档见 http://localhost:5000/docs
 
-### 2. 启动前端
+### 3. 启动前端
 
 ```bash
-cd frontend
-
-# 安装依赖
+cd frontend-next
 pnpm install
-
-# 启动开发服务器
-pnpm start
+pnpm dev
 ```
 
 前端服务将在 http://localhost:3000 启动
 
-### 3. 默认账号
+### 4. 使用 service.sh 管理服务
 
-- 管理员账号: `admin` / `admin123`
+```bash
+./service.sh start     # 同时启动前后端
+./service.sh stop      # 停止所有服务
+./service.sh restart   # 重启
+./service.sh status    # 查看运行状态
+./service.sh backend   # 仅启动后端
+./service.sh frontend  # 仅启动前端
+```
 
-## 📋 功能说明
+### 5. 默认管理员账号
 
-### 视频上传流程
-1. 用户登录后点击"上传视频"
-2. 选择视频文件（支持 MP4, AVI, MKV, MOV, WMV，最大 500MB）
-3. 可选：上传封面图片
-4. 填写标题、简介、标签
-5. 提交后显示上传进度
-6. 上传完成后等待管理员审核
-7. 审核通过后在前端展示
+- 用户名: `admin` / 密码: `admin123`
 
-### 视频抓取功能
-1. 管理员进入后台管理 → 视频抓取
-2. 输入视频页面URL
-3. 系统自动抓取标题、简介、封面等信息
-4. 确认后导入到平台
+## 🌟 功能特性
+
+- 视频浏览、搜索（按标题、作者、简介）
+- 用户注册、登录（JWT 认证，24 小时有效期）
+- 视频上传（MP4/AVI/MKV/MOV/WMV/FLV，最大 500MB），支持封面图片
+- 上传后需管理员审核才公开展示
+- 个人视频管理
+- 管理后台：用户管理、视频审核、视频抓取（yt-dlp）
 
 ## 🔒 安全措施
 
-1. **SQL注入防护**：使用 SQLAlchemy ORM，参数化查询
-2. **XSS防护**：前端转义显示内容，后端验证输入
-3. **文件上传安全**：验证文件类型、限制文件大小
-4. **JWT认证**：Token 有效期 24 小时，密码加密存储
+- JWT Token 认证
+- bcrypt 密码加密
+- SQLAlchemy ORM 参数化查询（防 SQL 注入）
+- 文件上传类型和大小校验
 
 ## 📄 许可证
 
 MIT License
-<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/407c6c71-84e9-4571-b84e-94079fd0629b" />
-<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/2fc468c5-903c-4f22-a76e-e3d512bf7fc5" />
-<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/047bebea-7908-43b3-a780-0aabc75e7804" />
-<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/4804e997-fd14-43e3-add3-5f266dce4cd6" />
-<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/4a823e33-5955-471e-bdb5-47496a499c73" />
-<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/700e709e-7bc5-4cad-8ce3-341c015bce84" />
-<img width="1813" height="1003" alt="image" src="https://github.com/user-attachments/assets/5703ba0f-14de-4bfe-b730-af6a2d5062c7" />

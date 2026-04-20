@@ -1,90 +1,87 @@
-from app import db
 from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import Integer, String, Text, Boolean, BigInteger, DateTime, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+import bcrypt as _bcrypt
+from app.database import Base
 
-class User(db.Model):
-    __tablename__ = 'users'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default='user')  # user, admin
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationship
-    videos = db.relationship('Video', backref='author', lazy='dynamic')
-    
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-    
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-    
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), default="user")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    videos: Mapped[list["Video"]] = relationship("Video", back_populates="author_rel", lazy="select")
+
+    def set_password(self, password: str):
+        self.password_hash = _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
+
+    def check_password(self, password: str) -> bool:
+        try:
+            return _bcrypt.checkpw(password.encode(), self.password_hash.encode())
+        except Exception:
+            return False
+
     def to_dict(self):
         return {
-            'id': self.id,
-            'username': self.username,
-            'email': self.email,
-            'role': self.role,
-            'is_active': self.is_active,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            "id": self.id, "username": self.username, "email": self.email,
+            "role": self.role, "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
-class Video(db.Model):
-    __tablename__ = 'videos'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(255), nullable=False, index=True)
-    description = db.Column(db.Text)
-    tags = db.Column(db.String(500))  # comma-separated tags
-    filename = db.Column(db.String(255), nullable=False)
-    cover_image = db.Column(db.String(255))
-    file_size = db.Column(db.BigInteger)
-    duration = db.Column(db.Integer)  # in seconds
-    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
-    view_count = db.Column(db.Integer, default=0)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    source_url = db.Column(db.Text)      # video playback URL (m3u8/mp4)
-    page_url = db.Column(db.Text)        # original page URL for re-scraping
-    is_scraped = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+class Video(Base):
+    __tablename__ = "videos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[str | None] = mapped_column(String(500))
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    cover_image: Mapped[str | None] = mapped_column(String(255))
+    file_size: Mapped[int | None] = mapped_column(BigInteger)
+    duration: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text)
+    page_url: Mapped[str | None] = mapped_column(Text)
+    is_scraped: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    author_rel: Mapped["User"] = relationship("User", back_populates="videos")
+
     def to_dict(self):
         return {
-            'id': self.id,
-            'title': self.title,
-            'description': self.description,
-            'tags': self.tags.split(',') if self.tags else [],
-            'filename': self.filename,
-            'cover_image': self.cover_image,
-            'file_size': self.file_size,
-            'duration': self.duration,
-            'status': self.status,
-            'view_count': self.view_count,
-            'user_id': self.user_id,
-            'author': self.author.username if self.author else None,
-            'source_url': self.source_url,
-            'video_url': self.source_url,  # alias for scraped videos
-            'page_url': self.page_url,
-            'is_scraped': self.is_scraped,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            "id": self.id, "title": self.title, "description": self.description,
+            "tags": self.tags.split(",") if self.tags else [],
+            "filename": self.filename, "cover_image": self.cover_image,
+            "file_size": self.file_size, "duration": self.duration,
+            "status": self.status, "view_count": self.view_count,
+            "user_id": self.user_id,
+            "author": self.author_rel.username if self.author_rel else None,
+            "source_url": self.source_url, "video_url": self.source_url,
+            "page_url": self.page_url, "is_scraped": self.is_scraped,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
-class ScrapedVideoInfo(db.Model):
-    """Temporary storage for scraped video info before saving"""
-    __tablename__ = 'scraped_videos'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    source_url = db.Column(db.Text, nullable=False)
-    title = db.Column(db.String(255))
-    description = db.Column(db.Text)
-    cover_url = db.Column(db.Text)
-    video_url = db.Column(db.Text)
-    duration = db.Column(db.Integer, default=0)
-    tags = db.Column(db.String(500))
-    scraped_at = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(20), default='pending')  # pending, imported, rejected
+
+class ScrapedVideoInfo(Base):
+    __tablename__ = "scraped_videos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    cover_url: Mapped[str | None] = mapped_column(Text)
+    video_url: Mapped[str | None] = mapped_column(Text)
+    duration: Mapped[int] = mapped_column(Integer, default=0)
+    tags: Mapped[str | None] = mapped_column(String(500))
+    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
