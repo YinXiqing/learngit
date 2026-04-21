@@ -242,16 +242,6 @@ async def serve_file(video_id: int, db: AsyncSession = Depends(get_db),
     return FileResponse(path, media_type="video/mp4")
 
 
-@router.get("/hls-file/{filepath:path}")
-async def serve_hls_file(filepath: str, db: AsyncSession = Depends(get_db),
-                         user: Optional[User] = Depends(get_optional_user)):
-    """服务任意 HLS 路径，如 hls/{scraped_id}/index.m3u8"""
-    path = settings.UPLOAD_FOLDER / filepath
-    if not path.exists():
-        raise HTTPException(404)
-    ct = "application/vnd.apple.mpegurl" if filepath.endswith(".m3u8") else "video/mp2t"
-    return FileResponse(path, media_type=ct)
-
 
 @router.get("/hls/{video_id}/{filename}")
 async def serve_hls(video_id: int, filename: str, db: AsyncSession = Depends(get_db),                    user: Optional[User] = Depends(get_optional_user)):

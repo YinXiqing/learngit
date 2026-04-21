@@ -360,8 +360,7 @@ export default function AdminScraper() {
                     {previewVideo.cover_url
                       ? <img src={previewVideo.cover_url} alt="" className="absolute inset-0 w-full h-full object-contain opacity-40" />
                       : null}
-                    <span className="relative text-white/80 text-sm z-10">DASH 分离流，无法直接预览</span>
-                    <span className="relative text-white/50 text-xs z-10">下载完成后可在此预览</span>
+                    <span className="relative text-white/70 text-sm z-10">该视频格式特殊，需下载完成后可在此预览</span>
                   </div>
                 : <video ref={videoRef} controls className="w-full h-full" />
               }
