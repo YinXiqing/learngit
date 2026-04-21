@@ -302,7 +302,7 @@ class ImportIn(BaseModel):
 async def _run_download(scraped_id: int, source_url: str, cover_url: Optional[str]):
     """后台任务：yt-dlp 下载合并视频 + ffmpeg 切 HLS，30分钟超时"""
     try:
-        await asyncio.wait_for(_do_download(scraped_id, source_url, cover_url), timeout=1800)
+        await asyncio.wait_for(_do_download(scraped_id, source_url, cover_url), timeout=7200)
     except asyncio.TimeoutError:
         logger.warning("scraper_download_timeout", scraped_id=scraped_id)
         from app.database import AsyncSessionLocal
@@ -478,24 +478,6 @@ async def import_scraped_video(scraped_id: int, data: ImportIn = ImportIn(),
     return {"message": "Video published successfully", "video": video.to_dict()}
 
 
-async def _download_cover(video_id: int, cover_url: str):
-    try:
-        import aiofiles
-        from app.database import AsyncSessionLocal
-        ext = cover_url.split("?")[0].rsplit(".", 1)[-1].lower()
-        if ext not in ("jpg", "jpeg", "png", "webp", "gif"): ext = "jpg"
-        fname = f"cover_{uuid.uuid4().hex}.{ext}"
-        async with aiohttp.ClientSession() as s:
-            async with s.get(cover_url, headers={"User-Agent": "Mozilla/5.0"}, ssl=False) as r:
-                r.raise_for_status()
-                content = await r.read()
-        async with aiofiles.open(settings.UPLOAD_FOLDER / fname, "wb") as f:
-            await f.write(content)
-        async with AsyncSessionLocal() as db:
-            await db.execute(update(Video).where(Video.id == video_id).values(cover_image=fname))
-            await db.commit()
-    except Exception as e:
-        logger.warning("cover_download_failed", video_id=video_id, error=str(e))
 
 
 class ScrapedUpdate(BaseModel):
@@ -554,24 +536,18 @@ async def batch_download_scraped(data: BatchIds, db: AsyncSession = Depends(get_
 
 
 @router.post("/scraped/batch-publish")
-async def batch_publish(data: BatchIds, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)):
+async def batch_publish(data: BatchIds, db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
+    """批量发布 = 批量触发下载，下载完成后手动发布"""
     items = (await db.execute(select(ScrapedVideoInfo).where(
-        ScrapedVideoInfo.id.in_(data.video_ids), ScrapedVideoInfo.status == "pending"))).scalars().all()
-    videos = []
+        ScrapedVideoInfo.id.in_(data.video_ids),
+        ScrapedVideoInfo.download_status.in_(["none", "failed"])))).scalars().all()
+    started = 0
     for s in items:
-        v = Video(title=s.title or "Untitled", description=s.description or "", tags=s.tags or "",
-                  source_url=s.video_url, page_url=s.source_url, cover_image=s.cover_url,
-                  duration=s.duration or 0, is_scraped=True, user_id=admin.id,
-                  status="approved", filename="external_video", file_size=0)
-        db.add(v)
-        s.status = "published"
-        videos.append(v)
+        s.download_status = "downloading"; s.download_progress = 0
+        asyncio.create_task(_run_download(s.id, s.source_url, s.cover_url))
+        started += 1
     await db.commit()
-    for v in videos:
-        await db.refresh(v)
-        if v.cover_image and v.cover_image.startswith("http"):
-            asyncio.create_task(_download_cover(v.id, v.cover_image))
-    return {"message": f"成功发布 {len(videos)} 个视频", "success_count": len(videos)}
+    return {"message": f"已启动 {started} 个下载任务", "started": started}
 
 
 @router.post("/scraped/batch-download")

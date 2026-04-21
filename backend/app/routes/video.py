@@ -97,6 +97,7 @@ async def _delete_video(db: AsyncSession, video: Video):
     from sqlalchemy import delete as sa_delete
     from app.models import ScrapedVideoInfo, WatchHistory
     await _delete_video_files(video)
+    await db.execute(sa_delete(ScrapedVideoInfo).where(ScrapedVideoInfo.video_id == video.id))
     if video.page_url:
         await db.execute(sa_delete(ScrapedVideoInfo).where(ScrapedVideoInfo.source_url == video.page_url))
     await db.execute(sa_delete(WatchHistory).where(WatchHistory.video_id == video.id))
@@ -220,11 +221,7 @@ async def stream_video(video_id: int, db: AsyncSession = Depends(get_db),
     # HLS 就绪时返回 m3u8
     if video.hls_ready:
         return {"is_hls": True, "video_url": f"/api/video/hls/{video_id}/index.m3u8"}
-    # 降级返回原始 MP4 路径
-    path = settings.UPLOAD_FOLDER / video.filename
-    if not path.exists():
-        raise HTTPException(404, "File not found")
-    return {"is_mp4": True, "video_url": f"/api/video/file/{video_id}"}
+    raise HTTPException(503, "视频正在处理中，请稍后再试")
 
 
 @router.get("/file/{video_id}")

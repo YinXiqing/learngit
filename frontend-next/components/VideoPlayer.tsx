@@ -18,7 +18,7 @@ type ConfirmState = { isOpen: boolean; type?: string; title?: string; message?: 
 export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
   const { isAdmin, user } = useAuth()
   const [video, setVideo] = useState<Video>(initialVideo)
-  const [playError, setPlayError] = useState(false)
+  const [playError, setPlayError] = useState<string | false>(false)
   const [relatedVideos, setRelatedVideos] = useState<Video[]>([])
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>({ isOpen: false })
@@ -69,7 +69,7 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
               restoreProgress()
               el.play().catch(() => {})
             })
-            hls.on(window.Hls.Events.ERROR, (_: any, d: any) => { if (d.fatal) setPlayError(true) })
+            hls.on(window.Hls.Events.ERROR, (_: any, d: any) => { if (d.fatal) setPlayError('error') })
           } else if (el.canPlayType('application/vnd.apple.mpegurl')) {
             el.src = url
             el.onloadedmetadata = restoreProgress
@@ -80,7 +80,7 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
           el.play().catch(() => {})
         }
       })
-      .catch(() => setPlayError(true))
+      .catch((e) => { setPlayError(e?.response?.status === 503 ? 'processing' : 'error') })
 
     const saveProgress = () => localStorage.setItem(`vp_${video.id}`, String(el.currentTime))
     el.addEventListener('timeupdate', saveProgress)
@@ -109,7 +109,7 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
           {playError ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-white gap-3">
               <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
-              <p className="text-gray-300 text-sm">视频加载失败</p>
+              <p className="text-gray-300 text-sm">{playError === 'processing' ? '视频正在处理中' : '视频加载失败'}</p>
               <button onClick={() => { setPlayError(false); setVideo({...video}) }}
                 className="px-4 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors">重试</button>
             </div>

@@ -28,7 +28,7 @@ export default function AdminScraper() {
   const [previewVideo, setPreviewVideo] = useState<ScrapedVideo | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
-  const [tab, setTab] = useState<'pending' | 'published'>('pending')
+  const [tab, setTab] = useState<'all' | 'downloading' | 'published'>('all')
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
   const pollingRef = useRef<Record<number, ReturnType<typeof setInterval>>>({})
@@ -50,14 +50,6 @@ export default function AdminScraper() {
     finally { setBulkLoading(false) }
   }
 
-  const handleBulkPublish = async (ids: number[]) => {
-    setBulkLoading(true)
-    try {
-      const res = await api.post('/admin/scraped/batch-publish', { video_ids: ids })
-      showToast(res.data.message); fetchList(); setSelected(new Set())
-    } catch (e: any) { showToast(e.response?.data?.detail || '批量发布失败', 'error') }
-    finally { setBulkLoading(false) }
-  }
 
   const handleBulkDelete = (ids: number[]) => setConfirm({
     isOpen: true, type: 'danger', title: '批量删除', message: `确定删除选中的 ${ids.length} 条记录？`,
@@ -146,6 +138,15 @@ export default function AdminScraper() {
 
   const closePreview = () => { hlsRef.current?.destroy(); hlsRef.current = null; setPreviewVideo(null) }
 
+  // 同步 previewVideo 的下载进度
+  useEffect(() => {
+    if (!previewVideo) return
+    const updated = videos.find(v => v.id === previewVideo.id)
+    if (updated && (updated.download_progress !== previewVideo.download_progress || updated.download_status !== previewVideo.download_status)) {
+      setPreviewVideo(updated)
+    }
+  }, [videos])
+
   useEffect(() => {
     if (!previewVideo || !videoRef.current) return
     const video = videoRef.current
@@ -170,7 +171,13 @@ export default function AdminScraper() {
     return () => { hls?.destroy(); hlsRef.current = null }
   }, [previewVideo])
 
-  const pending = videos.filter(v => v.status === 'pending')
+  const allPending = videos.filter(v => v.status === 'pending')
+  const tabs = [
+    { key: 'all',         label: '全部',   items: allPending },
+    { key: 'downloading', label: '进行中', items: allPending.filter(v => v.download_status === 'downloading') },
+    { key: 'published',   label: '已发布', items: videos.filter(v => v.status === 'published') },
+  ]
+  const currentItems = tabs.find(t => t.key === tab)?.items ?? []
   const published = videos.filter(v => v.status === 'published')
 
   return (
@@ -209,138 +216,124 @@ export default function AdminScraper() {
         <div className="bg-white dark:bg-[#1f1f1f] rounded-xl shadow-sm overflow-hidden">
           {/* Tab 头 */}
           <div className="flex border-b border-gray-100 dark:border-gray-800">
-            <button onClick={() => setTab('pending')}
-              className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === 'pending' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
-              待处理 ({pending.length})
-            </button>
-            <button onClick={() => setTab('published')}
-              className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === 'published' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
-              已发布 ({published.length})
-            </button>
+            {tabs.map(t => (
+              <button key={t.key} onClick={() => { setTab(t.key as any); setSelected(new Set()) }}
+                className={`px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${tab === t.key ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                {t.label}
+                {t.items.length > 0 && <span className="ml-1.5 text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">{t.items.length}</span>}
+              </button>
+            ))}
           </div>
 
-          {tab === 'pending' && (
-            <>
-              {/* 批量操作栏 */}
-              {pending.length > 0 && (
-                <div className="px-5 py-2 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3 flex-wrap">
-                  <input type="checkbox" className="rounded"
-                    checked={pending.every(v => selected.has(v.id))}
-                    onChange={() => toggleSelectAll(pending.map(v => v.id))} />
-                  <span className="text-xs text-gray-400 flex-1">{selected.size > 0 ? `已选 ${selected.size} 项` : '全选'}</span>
-                  {selected.size > 0 && (
-                    <div className="flex gap-2">
-                      <button disabled={bulkLoading} onClick={() => handleBulkDownload([...selected])}
-                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">批量下载</button>
-                      <button disabled={bulkLoading} onClick={() => handleBulkPublish([...selected])}
-                        className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">批量发布</button>
-                      <button disabled={bulkLoading} onClick={() => handleBulkDelete([...selected])}
-                        className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">批量删除</button>
-                    </div>
-                  )}
-                </div>
-              )}
-              {pending.length === 0
-                ? <p className="text-center py-10 text-sm text-gray-400 dark:text-gray-500">暂无待处理记录</p>
-                : <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {pending.map(v => (
-                      <div key={v.id} className="px-5 py-4 flex items-start gap-4">
-                        <input type="checkbox" className="mt-1 rounded shrink-0"
-                          checked={selected.has(v.id)} onChange={() => toggleSelect(v.id)} />
-                        <div className="w-24 h-14 shrink-0 rounded-lg overflow-hidden bg-gray-900 cursor-pointer"
-                          onClick={() => setPreviewVideo(v)}>
-                          {v.cover_url
-                            ? <img src={v.cover_url.startsWith('http') ? v.cover_url : `/uploads/${v.cover_url}`} alt=""
-                                className="w-full h-full object-cover"
-                                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                            : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {editingId === v.id
-                            ? <div className="flex gap-2 items-center mb-1">
-                                <input autoFocus value={editingTitle} onChange={e => setEditingTitle(e.target.value)}
-                                  onKeyDown={e => { if (e.key === 'Enter') handleEditTitle(v.id); if (e.key === 'Escape') setEditingId(null) }}
-                                  className="flex-1 border border-primary-400 rounded px-2 py-0.5 text-sm focus:outline-none dark:bg-[#2a2a2a] dark:text-gray-100" />
-                                <button onClick={() => handleEditTitle(v.id)} className="text-xs text-green-600 hover:underline">保存</button>
-                                <button onClick={() => setEditingId(null)} className="text-xs text-gray-400 hover:underline">取消</button>
-                              </div>
-                            : <div className="flex items-center gap-1 group/t mb-1">
-                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{v.title || '未命名'}</p>
-                                <button onClick={() => { setEditingId(v.id); setEditingTitle(v.title ?? '') }}
-                                  className="opacity-0 group-hover/t:opacity-100 text-gray-400 hover:text-gray-600 transition-opacity">
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                </button>
-                              </div>
-                          }
-                          <p className="text-xs text-gray-400 dark:text-gray-500 truncate mb-2">
-                            {(() => { try { return new URL(v.source_url).hostname } catch { return v.source_url } })()}
-                            {v.duration ? ` · ${String(Math.floor(v.duration/60)).padStart(2,'0')}:${String(v.duration%60).padStart(2,'0')}` : ''}
-                          </p>
-                          {v.download_status === 'downloading' && (
-                            <div>
-                              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-                                <span>下载中...</span><span>{v.download_progress}%</span>
-                              </div>
-                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                                <div className="bg-primary-600 h-1.5 rounded-full transition-all duration-500" style={{ width: `${v.download_progress}%` }} />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0 pt-0.5 flex-wrap justify-end">
-                          <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${dlLabel[v.download_status]?.cls}`}>
-                            {dlLabel[v.download_status]?.text}
-                          </span>
-                          {(v.download_status === 'none' || v.download_status === 'failed') && (
-                            <button onClick={() => handleDownload(v)}
-                              className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors">
-                              {v.download_status === 'failed' ? '重试' : '下载'}
-                            </button>
-                          )}
-                          <button onClick={() => handlePublish(v)} disabled={v.download_status !== 'done'}
-                            className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                            发布
-                          </button>
-                          <button onClick={() => handleDelete(v.id)}
-                            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 transition-colors">
-                            删除
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+          {/* 批量操作栏 */}
+          {tab !== 'published' && currentItems.length > 0 && (
+            <div className="px-5 py-2 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
+              <input type="checkbox" className="rounded"
+                checked={currentItems.length > 0 && currentItems.every(v => selected.has(v.id))}
+                onChange={() => toggleSelectAll(currentItems.map(v => v.id))} />
+              <span className="text-xs text-gray-400 flex-1">{selected.size > 0 ? `已选 ${selected.size} 项` : '全选'}</span>
+              {selected.size > 0 && (() => {
+                const sel = currentItems.filter(v => selected.has(v.id))
+                const canDownload = sel.some(v => v.download_status === 'none' || v.download_status === 'failed')
+                const canPublish = sel.every(v => v.download_status === 'done')
+                return (
+                  <div className="flex gap-2">
+                    {canDownload && <button disabled={bulkLoading} onClick={() => handleBulkDownload([...selected])}
+                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">批量下载</button>}
+                    {canPublish && <button disabled={bulkLoading} onClick={async () => {
+                      setBulkLoading(true)
+                      try { for (const id of selected) await api.post(`/admin/scraped/${id}/import`, {}); fetchList(); setSelected(new Set()); showToast(`已发布 ${selected.size} 个视频`) }
+                      catch (e: any) { showToast(e.response?.data?.detail || '发布失败', 'error') }
+                      finally { setBulkLoading(false) }
+                    }} className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">批量发布</button>}
+                    <button disabled={bulkLoading} onClick={() => handleBulkDelete([...selected])}
+                      className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">批量删除</button>
                   </div>
-              }
-            </>
+                )
+              })()}
+            </div>
           )}
 
-          {tab === 'published' && (
-            <>
-              {published.length === 0
-                ? <p className="text-center py-10 text-sm text-gray-400 dark:text-gray-500">暂无已发布记录</p>
-                : <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {published.map(v => (
-                      <div key={v.id} className="px-5 py-3 flex items-center gap-4">
-                        <div className="w-20 h-12 shrink-0 rounded overflow-hidden bg-gray-900 cursor-pointer"
-                          onClick={() => setPreviewVideo(v)}>
-                          {v.cover_url
-                            ? <img src={v.cover_url.startsWith('http') ? v.cover_url : `/uploads/${v.cover_url}`} alt=""
-                                className="w-full h-full object-cover"
-                                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                            : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
+          {/* 列表 */}
+          {currentItems.length === 0
+            ? <p className="text-center py-10 text-sm text-gray-400 dark:text-gray-500">暂无记录</p>
+            : <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {currentItems.map(v => (
+                  <div key={v.id} className="px-5 py-4 flex items-center gap-4">
+                    {tab !== 'published' && (
+                      <input type="checkbox" className="rounded shrink-0"
+                        checked={selected.has(v.id)} onChange={() => toggleSelect(v.id)} />
+                    )}
+                    {/* 封面 */}
+                    <div className="w-24 h-14 shrink-0 rounded-lg overflow-hidden bg-gray-900 cursor-pointer relative"
+                      onClick={() => setPreviewVideo(v)}>
+                      {v.cover_url
+                        ? <img src={v.cover_url.startsWith('http') ? v.cover_url : `/uploads/${v.cover_url}`} alt=""
+                            className="w-full h-full object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                        : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
+                    </div>
+                    {/* 信息 */}
+                    <div className="flex-1 min-w-0">
+                      {editingId === v.id
+                        ? <div className="flex gap-2 items-center mb-1">
+                            <input autoFocus value={editingTitle} onChange={e => setEditingTitle(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleEditTitle(v.id); if (e.key === 'Escape') setEditingId(null) }}
+                              className="flex-1 border border-primary-400 rounded px-2 py-0.5 text-sm focus:outline-none dark:bg-[#2a2a2a] dark:text-gray-100" />
+                            <button onClick={() => handleEditTitle(v.id)} className="text-xs text-green-600 hover:underline">保存</button>
+                            <button onClick={() => setEditingId(null)} className="text-xs text-gray-400 hover:underline">取消</button>
+                          </div>
+                        : <div className="flex items-center gap-1 group/t mb-0.5">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{v.title || '未命名'}</p>
+                            {tab !== 'published' && (
+                              <button onClick={() => { setEditingId(v.id); setEditingTitle(v.title ?? '') }}
+                                className="opacity-0 group-hover/t:opacity-100 text-gray-400 hover:text-gray-600 transition-opacity shrink-0">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                              </button>
+                            )}
+                          </div>
+                      }
+                      <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                        {(() => { try { return new URL(v.source_url).hostname } catch { return v.source_url } })()}
+                        {v.duration ? ` · ${String(Math.floor(v.duration/60)).padStart(2,'0')}:${String(v.duration%60).padStart(2,'0')}` : ''}
+                      </p>
+                      {v.download_status === 'downloading' && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                            <div className="bg-primary-600 h-1 rounded-full transition-all duration-500" style={{ width: `${v.download_progress}%` }} />
+                          </div>
+                          <span className="text-xs text-gray-400 shrink-0">{v.download_progress}%</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{v.title || '未命名'}</p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                            {v.scraped_at ? new Date(v.scraped_at).toLocaleString() : ''}
-                          </p>
-                        </div>
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-medium shrink-0">已发布</span>
-                      </div>
-                    ))}
+                      )}
+                    </div>
+                    {/* 状态 + 操作 */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${dlLabel[v.download_status]?.cls}`}>
+                        {dlLabel[v.download_status]?.text}
+                      </span>
+                      {(v.download_status === 'none' || v.download_status === 'failed') && (
+                        <button onClick={() => handleDownload(v)}
+                          className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors">
+                          {v.download_status === 'failed' ? '重试' : '下载'}
+                        </button>
+                      )}
+                      {v.download_status === 'done' && v.status === 'pending' && (
+                        <button onClick={() => handlePublish(v)}
+                          className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors">
+                          发布
+                        </button>
+                      )}
+                      {tab !== 'published' && (
+                        <button onClick={() => handleDelete(v.id)}
+                          className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 transition-colors">
+                          删除
+                        </button>
+                      )}
+                    </div>
                   </div>
-              }
-            </>
-          )}
+                ))}
+              </div>
+          }
         </div>
       </div>
 
@@ -355,7 +348,17 @@ export default function AdminScraper() {
               </button>
             </div>
             <div className="bg-black aspect-video">
-              {(previewVideo.download_status === 'none' && !previewVideo.is_m3u8)
+              {previewVideo.download_status === 'downloading'
+                ? <div className="w-full h-full relative flex flex-col items-center justify-center gap-3">
+                    {previewVideo.cover_url
+                      ? <img src={previewVideo.cover_url} alt="" className="absolute inset-0 w-full h-full object-contain opacity-30" />
+                      : null}
+                    <div className="relative z-10 flex flex-col items-center gap-2">
+                      <div className="w-8 h-8 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      <span className="text-white/80 text-sm">下载中 {previewVideo.download_progress}%</span>
+                    </div>
+                  </div>
+                : (previewVideo.download_status === 'none' && !previewVideo.is_m3u8)
                 ? <div className="w-full h-full relative flex flex-col items-center justify-center gap-2">
                     {previewVideo.cover_url
                       ? <img src={previewVideo.cover_url} alt="" className="absolute inset-0 w-full h-full object-contain opacity-40" />
