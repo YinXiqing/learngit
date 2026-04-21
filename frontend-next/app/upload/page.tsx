@@ -25,6 +25,15 @@ export default function Upload() {
     setVideoFile(f); setError('')
   }
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const f = e.dataTransfer.files?.[0]
+    if (!f) return
+    if (!f.type.startsWith('video/')) return setError('请上传视频文件')
+    if (f.size > 500 * 1024 * 1024) return setError('视频文件大小不能超过500MB')
+    setVideoFile(f); setError('')
+  }
+
   const handleCover = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
@@ -90,9 +99,11 @@ export default function Upload() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">视频文件 <span className="text-red-500">*</span></label>
                 {!videoFile ? (
-                  <div onClick={() => fileRef.current?.click()} className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-colors">
+                  <div onClick={() => fileRef.current?.click()}
+                    onDrop={handleDrop} onDragOver={e => e.preventDefault()}
+                    className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors">
                     <svg className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                    <p className="text-gray-600 dark:text-gray-400 mb-2">点击选择视频文件</p>
+                    <p className="text-gray-600 dark:text-gray-400 mb-1 font-medium">拖拽视频到此处，或点击选择</p>
                     <p className="text-sm text-gray-400 dark:text-gray-500">支持 MP4, AVI, MKV, MOV, WMV，最大 500MB</p>
                   </div>
                 ) : (

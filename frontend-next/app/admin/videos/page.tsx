@@ -4,22 +4,34 @@ import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { Search, Check, X, Trash2, Pencil, Play } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import VideoPreviewModal from '@/components/VideoPreviewModal'
 import type { Video } from '@/types'
 
-const dur = (s: number | null) => s ? `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` : '00:00'
+const dur = (s: number | null) => s ? `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : '00:00'
 
-function statusBadge(s: string) {
-  const map: Record<string, [string, string]> = {
-    pending: ['bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300', '待审核'],
-    approved: ['bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300', '已通过'],
-    rejected: ['bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300', '已拒绝'],
+const statusBadge = (s: string) => {
+  const map: Record<string, { variant: 'warning' | 'success' | 'destructive'; label: string }> = {
+    pending: { variant: 'warning', label: '待审核' },
+    approved: { variant: 'success', label: '已通过' },
+    rejected: { variant: 'destructive', label: '已拒绝' },
   }
-  const [cls, label] = map[s] ?? ['bg-gray-100 dark:bg-[#2a2a2a] text-gray-800 dark:text-gray-200', s]
-  return <span className={`px-2 py-1 text-xs font-medium rounded-full ${cls}`}>{label}</span>
+  const { variant, label } = map[s] ?? { variant: 'default' as any, label: s }
+  return <Badge variant={variant}>{label}</Badge>
 }
+
+const tabs = [
+  { key: 'all', label: '全部' },
+  { key: 'pending', label: '待审核' },
+  { key: 'approved', label: '已通过' },
+  { key: 'rejected', label: '已拒绝' },
+]
 
 type ConfirmState = { isOpen: boolean; type?: string; title?: string; message?: string; onConfirm?: () => void }
 
@@ -37,14 +49,15 @@ function AdminVideosInner() {
   const [confirm, setConfirm] = useState<ConfirmState>({ isOpen: false })
   const [preview, setPreview] = useState<Video | null>(null)
 
-  useEffect(() => { fetchVideos() }, [statusFilter, page, search])
+  useEffect(() => { fetchVideos() }, [statusFilter, page])
+  useEffect(() => { setPage(1) }, [statusFilter])
 
   const fetchVideos = async () => {
     setLoading(true)
     try {
       const res = await api.get('/admin/videos', { params: { status: statusFilter, page, per_page: 20, search } })
       setVideos(res.data.videos); setTotalPages(res.data.pages); setSelected([])
-    } catch {} finally { setLoading(false) }
+    } catch { } finally { setLoading(false) }
   }
 
   const bulkUpdate = async (status: string, ids?: number[]) => {
@@ -54,15 +67,17 @@ function AdminVideosInner() {
     fetchVideos()
   }
 
-  const deleteVideo = (id: number) => setConfirm({ isOpen: true, type: 'danger', title: '删除视频', message: '确定要删除这个视频吗？', onConfirm: async () => {
-    await api.delete(`/admin/videos/${id}`); fetchVideos(); setConfirm({ isOpen: false })
-  }})
+  const deleteVideo = (id: number) => setConfirm({
+    isOpen: true, type: 'danger', title: '删除视频', message: '确定要删除这个视频吗？',
+    onConfirm: async () => { await api.delete(`/admin/videos/${id}`); fetchVideos(); setConfirm({ isOpen: false }) }
+  })
 
   const bulkDelete = () => {
     if (!selected.length) return
-    setConfirm({ isOpen: true, type: 'danger', title: '批量删除', message: `确定要删除 ${selected.length} 个视频吗？`, onConfirm: async () => {
-      await api.post('/admin/videos/bulk-delete', { video_ids: selected }); fetchVideos(); setConfirm({ isOpen: false })
-    }})
+    setConfirm({
+      isOpen: true, type: 'danger', title: '批量删除', message: `确定要删除 ${selected.length} 个视频吗？`,
+      onConfirm: async () => { await api.post('/admin/videos/bulk-delete', { video_ids: selected }); fetchVideos(); setConfirm({ isOpen: false }) }
+    })
   }
 
   const saveEdit = async () => {
@@ -71,127 +86,171 @@ function AdminVideosInner() {
     setEditing(null); fetchVideos()
   }
 
-  const tabs = ['all', 'pending', 'approved', 'rejected']
-  const tabLabels: Record<string, string> = { all: '全部', pending: '待审核', approved: '已通过', rejected: '已拒绝' }
+  const allSelected = videos.length > 0 && selected.length === videos.length
+  const toggleAll = () => setSelected(allSelected ? [] : videos.map(v => v.id))
+  const toggleOne = (id: number) => setSelected(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
 
   return (
     <RequireAdmin>
-    <div className="min-h-screen bg-gray-50 dark:bg-[#0f0f0f] py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-6"><h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">视频管理</h1><p className="text-gray-600 dark:text-gray-400 mt-1">管理平台所有视频内容</p></div>
+      <div className="p-6 lg:p-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">视频管理</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">管理平台所有视频内容</p>
+        </div>
 
-        <div className="bg-white dark:bg-[#1f1f1f] rounded-xl shadow-sm p-4 mb-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-            <div className="flex space-x-1">
+        {/* 筛选栏 */}
+        <Card className="mb-4">
+          <div className="px-4 py-3 flex flex-col sm:flex-row gap-3">
+            <div className="flex gap-1 flex-wrap">
               {tabs.map(t => (
-                <button key={t} onClick={() => { router.push(`/admin/videos?status=${t}`); setPage(1) }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === t ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-[#2a2a2a]'}`}>
-                  {tabLabels[t]}
+                <button key={t.key} onClick={() => router.push(`/admin/videos?status=${t.key}`)}
+                  className={cn('px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                    statusFilter === t.key ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800')}>
+                  {t.label}
                 </button>
               ))}
             </div>
-            <form onSubmit={e => { e.preventDefault(); setPage(1); fetchVideos() }} className="flex space-x-2">
-              <input type="text" placeholder="搜索视频标题、作者..." value={search} onChange={e => setSearch(e.target.value)}
-                className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-[#2a2a2a] dark:text-gray-100 dark:focus:ring-primary-400" />
-              <button type="submit" className="bg-gray-100 dark:bg-[#2a2a2a] text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-600 dark:bg-[#333]">搜索</button>
-              {videos.length > 0 && (
-                <button type="button" onClick={() => setSelected(selected.length === videos.length ? [] : videos.map(v => v.id))}
-                  className="bg-primary-100 text-primary-700 px-4 py-2 rounded-lg text-sm hover:bg-primary-200">
-                  {selected.length === videos.length ? '取消全选' : '全选'}
-                </button>
-              )}
+            <form onSubmit={e => { e.preventDefault(); setPage(1); fetchVideos() }} className="flex gap-2 sm:ml-auto">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索标题、作者..."
+                  className="pl-9 pr-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 w-48" />
+              </div>
+              <Button type="submit" variant="outline" size="sm">搜索</Button>
             </form>
           </div>
-        </div>
+        </Card>
 
+        {/* 批量操作栏 */}
         {selected.length > 0 && (
-          <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4 mb-6 flex items-center justify-between">
-            <span className="text-primary-800 dark:text-primary-300 font-medium">已选择 {selected.length} 个视频</span>
-            <div className="flex space-x-2">
-              <button onClick={() => bulkUpdate('approved')} className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700">批量通过</button>
-              <button onClick={() => bulkUpdate('rejected')} className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700">批量拒绝</button>
-              <button onClick={bulkDelete} className="bg-gray-600 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-700">批量删除</button>
+          <div className="mb-4 px-4 py-3 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg flex items-center justify-between">
+            <span className="text-sm text-primary-800 dark:text-primary-300 font-medium">已选 {selected.length} 个</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="success" onClick={() => bulkUpdate('approved')}>批量通过</Button>
+              <Button size="sm" variant="destructive" onClick={() => bulkUpdate('rejected')}>批量拒绝</Button>
+              <Button size="sm" variant="outline" onClick={bulkDelete}>批量删除</Button>
             </div>
           </div>
         )}
 
-        <div className="bg-white dark:bg-[#1f1f1f] rounded-xl shadow-sm overflow-hidden">
+        {/* 视频列表 */}
+        <Card className="overflow-hidden">
           {loading ? (
-            <div className="p-8 space-y-4">{[...Array(5)].map((_, i) => <div key={i} className="flex items-center space-x-4 animate-pulse"><div className="w-24 h-16 bg-gray-200 dark:bg-[#333] rounded" /><div className="flex-1"><div className="h-4 bg-gray-200 dark:bg-[#333] rounded w-1/4 mb-2" /><div className="h-3 bg-gray-200 dark:bg-[#333] rounded w-1/6" /></div></div>)}</div>
-          ) : videos.length > 0 ? (
-            <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {videos.map(v => (
-                <div key={v.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <div className="grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-1"><input type="checkbox" checked={selected.includes(v.id)} onChange={() => setSelected(prev => prev.includes(v.id) ? prev.filter(id => id !== v.id) : [...prev, v.id])} className="rounded border-gray-300 dark:border-gray-600" /></div>
-                    <div className="col-span-5 flex items-center space-x-3">
-                      <div className="relative w-24 h-16 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer" onClick={() => setPreview(v)}>
-                          {v.cover_image ? <Image src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} fill className="object-cover" sizes="128px" /> : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
-                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" /></svg>
-                          </div>
-                          <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">{dur(v.duration)}</div>
-                        </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-1"><Link href={`/video/${v.id}`} target="_blank" className="hover:text-primary-600">{v.title}</Link></h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">{v.description || '暂无简介'}</p>
-                      </div>
-                    </div>
-                    <div className="col-span-2 text-sm text-gray-700 dark:text-gray-300">{v.author}</div>
-                    <div className="col-span-2">{statusBadge(v.status)}</div>
-                    <div className="col-span-2 flex items-center justify-center space-x-1">
-                      {v.status === 'pending' && <>
-                        <button onClick={() => setConfirm({ isOpen: true, type: 'success', title: '通过审核', message: `确定通过"${v.title}"？`, onConfirm: () => { bulkUpdate('approved', [v.id]); setConfirm({ isOpen: false }) }})} className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">通过</button>
-                        <button onClick={() => setConfirm({ isOpen: true, type: 'danger', title: '拒绝视频', message: `确定拒绝"${v.title}"？`, onConfirm: () => { bulkUpdate('rejected', [v.id]); setConfirm({ isOpen: false }) }})} className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">拒绝</button>
-                      </>}
-                      <button onClick={() => setPreview(v)} className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">预览</button>
-                      <button onClick={() => setEditing({...v})} className="p-1 text-gray-400 dark:text-gray-500 hover:text-yellow-600">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                      </button>
-                      <button onClick={() => deleteVideo(v.id)} className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
-                    </div>
+            <div className="p-6 space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 animate-pulse">
+                  <div className="w-24 h-14 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/5" />
                   </div>
                 </div>
               ))}
             </div>
-          ) : <div className="text-center py-16 text-gray-500 dark:text-gray-400">暂无视频</div>}
-        </div>
+          ) : videos.length === 0 ? (
+            <div className="text-center py-16 text-gray-400 dark:text-gray-500 text-sm">暂无视频</div>
+          ) : (
+            <>
+              {/* 表头 */}
+              <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                <div className="col-span-1"><input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded" /></div>
+                <div className="col-span-5">视频</div>
+                <div className="col-span-2">作者</div>
+                <div className="col-span-2">状态</div>
+                <div className="col-span-2 text-center">操作</div>
+              </div>
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {videos.map(v => (
+                  <div key={v.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <div className="flex md:grid md:grid-cols-12 gap-4 items-center">
+                      <div className="hidden md:block col-span-1">
+                        <input type="checkbox" checked={selected.includes(v.id)} onChange={() => toggleOne(v.id)} className="rounded" />
+                      </div>
+                      <div className="col-span-5 flex items-center gap-3 min-w-0">
+                        <div className="relative w-24 h-14 bg-gray-900 rounded-lg overflow-hidden shrink-0 cursor-pointer group" onClick={() => setPreview(v)}>
+                          {v.cover_image
+                            ? <Image src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} fill className="object-cover" sizes="96px" />
+                            : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Play className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">{dur(v.duration)}</div>
+                        </div>
+                        <div className="min-w-0">
+                          <Link href={`/video/${v.id}`} target="_blank" className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-primary-600 line-clamp-1">{v.title}</Link>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 line-clamp-1">{v.description || '暂无简介'}</p>
+                        </div>
+                      </div>
+                      <div className="hidden md:block col-span-2 text-sm text-gray-600 dark:text-gray-400">{v.author}</div>
+                      <div className="hidden md:block col-span-2">{statusBadge(v.status)}</div>
+                      <div className="col-span-2 flex items-center justify-end md:justify-center gap-1 ml-auto md:ml-0">
+                        {v.status === 'pending' && <>
+                          <Button size="sm" variant="success" onClick={() => setConfirm({ isOpen: true, type: 'success', title: '通过审核', message: `确定通过"${v.title}"？`, onConfirm: () => { bulkUpdate('approved', [v.id]); setConfirm({ isOpen: false }) } })}>
+                            <Check className="w-3 h-3" />
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => setConfirm({ isOpen: true, type: 'danger', title: '拒绝视频', message: `确定拒绝"${v.title}"？`, onConfirm: () => { bulkUpdate('rejected', [v.id]); setConfirm({ isOpen: false }) } })}>
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </>}
+                        <Button size="sm" variant="outline" onClick={() => setEditing({ ...v })}><Pencil className="w-3 h-3" /></Button>
+                        <Button size="sm" variant="outline" onClick={() => deleteVideo(v.id)}><Trash2 className="w-3 h-3 text-red-500" /></Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Card>
 
+        {/* 分页 */}
         {totalPages > 1 && (
-          <div className="flex justify-center mt-6 space-x-2">
-            <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800">上一页</button>
-            <span className="px-4 py-2">第 {page} 页，共 {totalPages} 页</span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800">下一页</button>
+          <div className="flex justify-center items-center gap-3 mt-6">
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>上一页</Button>
+            <span className="text-sm text-gray-500 dark:text-gray-400">第 {page} / {totalPages} 页</span>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>下一页</Button>
           </div>
         )}
       </div>
 
+      {/* 编辑弹窗 */}
       {editing && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-[#1f1f1f] rounded-xl p-6 w-full max-w-lg mx-4">
-            <h2 className="text-lg font-bold mb-4">编辑视频</h2>
-            <div className="space-y-4">
-              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">标题</label><input type="text" value={editing.title} onChange={e => setEditing({...editing, title: e.target.value})} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-[#2a2a2a] dark:text-gray-100 dark:border-gray-600" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">简介</label><textarea value={editing.description ?? ''} onChange={e => setEditing({...editing, description: e.target.value})} rows={3} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-[#2a2a2a] dark:text-gray-100 dark:border-gray-600" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">状态</label>
-                <select value={editing.status} onChange={e => setEditing({...editing, status: e.target.value as Video['status']})} className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-[#2a2a2a] dark:text-gray-100 dark:border-gray-600">
-                  <option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已拒绝</option>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-lg">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">编辑视频</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">标题</label>
+                <input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-[#2a2a2a] dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">简介</label>
+                <textarea value={editing.description ?? ''} onChange={e => setEditing({ ...editing, description: e.target.value })} rows={3}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-[#2a2a2a] dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">状态</label>
+                <select value={editing.status} onChange={e => setEditing({ ...editing, status: e.target.value as Video['status'] })}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-[#2a2a2a] dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                  <option value="pending">待审核</option>
+                  <option value="approved">已通过</option>
+                  <option value="rejected">已拒绝</option>
                 </select>
               </div>
             </div>
-            <div className="flex justify-end space-x-3 mt-6">
-              <button onClick={() => setEditing(null)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">取消</button>
-              <button onClick={saveEdit} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">保存</button>
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setEditing(null)}>取消</Button>
+              <Button onClick={saveEdit}>保存</Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       <ConfirmDialog isOpen={confirm.isOpen} onClose={() => setConfirm({ isOpen: false })} onConfirm={confirm.onConfirm} title={confirm.title} message={confirm.message} type={confirm.type} confirmText="确认" cancelText="取消" />
       {preview && <VideoPreviewModal video={preview} onClose={() => setPreview(null)} />}
-    </div>
     </RequireAdmin>
   )
 }

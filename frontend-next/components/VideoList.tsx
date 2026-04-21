@@ -80,14 +80,17 @@ export default function VideoList({ initialVideos, initialTags, initialHasMore }
       </div>
 
       {allTags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button onClick={() => setActiveTag('')} className={`px-3 py-1 rounded-full text-sm transition-colors ${activeTag === '' ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 dark:bg-[#333]'}`}>全部</button>
-          {allTags.slice(0, 20).map(tag => (
-            <button key={tag} onClick={() => setActiveTag(activeTag === tag ? '' : tag)}
-              className={`px-3 py-1 rounded-full text-sm transition-colors ${activeTag === tag ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 dark:bg-[#333]'}`}>
-              {tag}
-            </button>
-          ))}
+        <div className="relative mb-4">
+          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+            <button onClick={() => setActiveTag('')} className={`px-3 py-1 rounded-full text-sm whitespace-nowrap transition-colors shrink-0 ${activeTag === '' ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>全部</button>
+            {allTags.slice(0, 20).map(tag => (
+              <button key={tag} onClick={() => setActiveTag(activeTag === tag ? '' : tag)}
+                className={`px-3 py-1 rounded-full text-sm whitespace-nowrap transition-colors shrink-0 ${activeTag === tag ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                {tag}
+              </button>
+            ))}
+          </div>
+          <div className="absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-gray-50 dark:from-[#0f0f0f] to-transparent pointer-events-none" />
         </div>
       )}
 

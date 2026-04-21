@@ -1,9 +1,8 @@
-import Link from 'next/link'
 import VideoList from '@/components/VideoList'
 import { serverFetch } from '@/lib/server-api'
 import type { Video } from '@/types'
 
-async function getInitialVideos(): Promise<{ videos: Video[]; tags: string[]; hasMore: boolean }> {
+async function getInitialVideos() {
   try {
     const res = await serverFetch('/api/video/list?page=1&per_page=12&sort=newest')
     if (!res.ok) return { videos: [], tags: [], hasMore: false }
@@ -24,9 +23,6 @@ export default async function Home() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0f0f0f]">
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-end mb-4">
-          <Link href="/search" className="text-primary-600 hover:text-primary-700 font-medium text-sm">查看全部 →</Link>
-        </div>
         <VideoList initialVideos={videos} initialTags={tags} initialHasMore={hasMore} />
       </section>
     </div>

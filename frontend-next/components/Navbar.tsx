@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import NotificationBell from './NotificationBell'
 import ThemeToggle from './ThemeToggle'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 export default function Navbar() {
@@ -15,6 +15,8 @@ export default function Navbar() {
   const [q, setQ] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (pathname === '/search') setQ(searchParams.get('search') || '')
@@ -23,6 +25,16 @@ export default function Navbar() {
   useEffect(() => {
     const h = localStorage.getItem('search_history')
     if (h) setSearchHistory(JSON.parse(h))
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   const saveHistory = (term: string) => {
@@ -72,13 +84,13 @@ export default function Navbar() {
             </Link>
 
             {/* 搜索栏居中 */}
-            <form onSubmit={handleSearch} className="absolute left-1/2 -translate-x-1/2 w-full max-w-lg px-4">
+            <form onSubmit={handleSearch} className="absolute left-1/2 -translate-x-1/2 w-full max-w-lg px-24 sm:px-28 md:px-4">
               <div className="relative">
                 <input type="text" value={q} onChange={e => setQ(e.target.value)}
                   onFocus={() => setShowHistory(true)}
                   onBlur={() => setTimeout(() => setShowHistory(false), 150)}
-                  placeholder="搜索视频、作者..."
-                  className="w-full pl-4 pr-9 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#2a2a2a] dark:text-gray-100 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-[#2a2a2a] dark:text-gray-100/30 focus:border-primary-400 focus:bg-white dark:focus:bg-[#333] transition-all" />
+                  placeholder="搜索视频..."
+                  className="w-full pl-4 pr-9 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#2a2a2a] dark:text-gray-100 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-400 focus:bg-white dark:focus:bg-[#333] transition-all" />
                 <button type="submit" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary-600 transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -88,7 +100,7 @@ export default function Navbar() {
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#2a2a2a] rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-50">
                     {searchHistory.map(term => (
                       <div key={term} onClick={() => handleHistoryClick(term)}
-                        className="flex items-center justify-between px-4 py-2 hover:bg-gray-50 dark:hover:bg-[#2a2a2a] dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                        className="flex items-center justify-between px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
                         <span className="flex items-center gap-2">
                           <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           {term}
@@ -118,25 +130,27 @@ export default function Navbar() {
                   <NotificationBell />
 
                   {/* 头像 + 下拉菜单 */}
-                  <div className="relative group">
-                    <button className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center hover:ring-2 hover:ring-primary-300 transition-all">
+                  <div className="relative" ref={userMenuRef}>
+                    <button onClick={() => setShowUserMenu(v => !v)} className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center hover:ring-2 hover:ring-primary-300 transition-all">
                       <span className="text-sm font-semibold text-primary-700">{user.username.charAt(0).toUpperCase()}</span>
                     </button>
-                    <div className="absolute right-0 top-8 w-44 bg-white dark:bg-[#2a2a2a] rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 text-sm invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-150">
-                      <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
-                        <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{user.username}</p>
+                    {showUserMenu && (
+                      <div className="absolute right-0 top-10 w-44 bg-white dark:bg-[#2a2a2a] rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 text-sm z-50">
+                        <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                          <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{user.username}</p>
+                        </div>
+                        {[
+                          { href: '/history', label: '观看历史' },
+                          { href: '/my-videos', label: '我的视频' },
+                          { href: '/profile', label: '个人资料' },
+                          ...(isAdmin() ? [{ href: '/admin', label: '管理后台' }] : []),
+                        ].map(item => (
+                          <Link key={item.href} href={item.href} onClick={() => setShowUserMenu(false)}
+                            className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">{item.label}</Link>
+                        ))}
+                        <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-red-500 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-t border-gray-100 dark:border-gray-700 mt-1">退出登录</button>
                       </div>
-                      {[
-                        { href: '/history', label: '观看历史' },
-                        { href: '/my-videos', label: '我的视频' },
-                        { href: '/profile', label: '个人资料' },
-                        ...(isAdmin() ? [{ href: '/admin', label: '管理后台' }] : []),
-                      ].map(item => (
-                        <Link key={item.href} href={item.href}
-                          className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2a2a2a] dark:hover:bg-gray-700 transition-colors">{item.label}</Link>
-                      ))}
-                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-red-500 hover:bg-gray-50 dark:hover:bg-[#2a2a2a] transition-colors border-t border-gray-100 dark:border-gray-700 mt-1">退出登录</button>
-                    </div>
+                    )}
                   </div>
                 </>
               ) : (

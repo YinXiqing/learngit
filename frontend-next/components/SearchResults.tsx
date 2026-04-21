@@ -25,7 +25,6 @@ function SearchResultsInner({ initialVideos, initialTotal, initialPages, initial
   const [page, setPage] = useState(1)
   const [activeTag, setActiveTag] = useState('')
   const [loading, setLoading] = useState(false)
-  const [hoveredVideo, setHoveredVideo] = useState<number | null>(null)
 
 
   const search = useCallback(async (p: number, sort: string, tag: string) => {
@@ -63,22 +62,25 @@ function SearchResultsInner({ initialVideos, initialTotal, initialPages, initial
         </div>
 
         <div className="mb-6 space-y-3">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500 dark:text-gray-400">排序方式:</span>
-            <select value={sortBy} onChange={e => { setSortBy(e.target.value); setPage(1) }}
-              className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-[#2a2a2a] dark:text-gray-100 dark:focus:ring-primary-400">
-              <option value="newest">最新发布</option>
-              <option value="popular">最热播放</option>
-              <option value="oldest">最早发布</option>
-            </select>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500 dark:text-gray-400 shrink-0">排序：</span>
+            {[['newest', '最新'], ['popular', '最热'], ['oldest', '最早']].map(([val, label]) => (
+              <button key={val} onClick={() => { setSortBy(val); setPage(1) }}
+                className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${sortBy === val ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                {label}
+              </button>
+            ))}
           </div>
           {allTags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => { setActiveTag(''); setPage(1) }} className={`px-3 py-1 rounded-full text-sm ${activeTag === '' ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 dark:bg-[#333]'}`}>全部</button>
-              {allTags.slice(0, 20).map(tag => (
-                <button key={tag} onClick={() => { setActiveTag(activeTag === tag ? '' : tag); setPage(1) }}
-                  className={`px-3 py-1 rounded-full text-sm ${activeTag === tag ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 dark:bg-[#333]'}`}>{tag}</button>
-              ))}
+            <div className="relative">
+              <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+                <button onClick={() => { setActiveTag(''); setPage(1) }} className={`px-3 py-1 rounded-full text-sm whitespace-nowrap shrink-0 transition-colors ${activeTag === '' ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>全部</button>
+                {allTags.slice(0, 20).map(tag => (
+                  <button key={tag} onClick={() => { setActiveTag(activeTag === tag ? '' : tag); setPage(1) }}
+                    className={`px-3 py-1 rounded-full text-sm whitespace-nowrap shrink-0 transition-colors ${activeTag === tag ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>{tag}</button>
+                ))}
+              </div>
+              <div className="absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-gray-50 dark:from-[#0f0f0f] to-transparent pointer-events-none" />
             </div>
           )}
         </div>
@@ -93,12 +95,25 @@ function SearchResultsInner({ initialVideos, initialTotal, initialPages, initial
               {videos.map((v, i) => <VideoCard key={v.id} video={v} formatViews={fmt} formatDuration={dur} priority={i < 4} />)}
             </div>
             {totalPages > 1 && (
-              <div className="flex justify-center mt-8 space-x-2">
-                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800">上一页</button>
-                {[...Array(Math.min(totalPages, 7))].map((_, i) => (
-                  <button key={i} onClick={() => setPage(i+1)} className={`w-10 h-10 rounded-lg ${page === i+1 ? 'bg-primary-600 text-white' : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{i+1}</button>
-                ))}
-                <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800">下一页</button>
+              <div className="flex justify-center mt-8 items-center gap-1">
+                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm">上一页</button>
+                {(() => {
+                  const pages: (number | '...')[] = []
+                  if (totalPages <= 7) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i)
+                  } else {
+                    pages.push(1)
+                    if (page > 3) pages.push('...')
+                    for (let i = Math.max(2, page-1); i <= Math.min(totalPages-1, page+1); i++) pages.push(i)
+                    if (page < totalPages - 2) pages.push('...')
+                    pages.push(totalPages)
+                  }
+                  return pages.map((p, i) => p === '...'
+                    ? <span key={`e${i}`} className="w-10 h-10 flex items-center justify-center text-gray-400">…</span>
+                    : <button key={p} onClick={() => setPage(p)} className={`w-10 h-10 rounded-lg text-sm ${page === p ? 'bg-primary-600 text-white' : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{p}</button>
+                  )
+                })()}
+                <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm">下一页</button>
               </div>
             )}
           </>

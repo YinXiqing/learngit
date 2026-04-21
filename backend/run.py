@@ -1,4 +1,4 @@
-import asyncio
+import os, asyncio
 import uvicorn
 from app.logger import setup_logging
 
@@ -12,7 +12,7 @@ async def _init_db():
 
 if __name__ == "__main__":
     asyncio.run(_init_db())
-    uvicorn.run("run:app", host="0.0.0.0", port=5000, workers=4)
+    uvicorn.run("run:app", host="0.0.0.0", port=5000, workers=int(os.environ.get("WORKERS", 1)))
 
 from app import create_app
 app = create_app()
