@@ -2,9 +2,9 @@ import './globals.css'
 import type { ReactNode } from 'react'
 import Script from 'next/script'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { ChatProvider } from '@/contexts/ChatContext'
 import Navbar from '@/components/Navbar'
 import ChatWidget from '@/components/ChatWidget'
-import AIControl from '@/components/AIControl'
 
 export const metadata = { title: '视频平台', description: '轻量级视频分享平台', icons: { icon: '/icon.svg' } }
 
@@ -53,8 +53,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </footer>
             <div id="mobile-nav-spacer" className="md:hidden h-16" />
           </div>
-          <ChatWidget />
-          <AIControl />
+          <ChatProvider>
+            <ChatWidget />
+          </ChatProvider>
         </AuthProvider>
       </body>
     </html>

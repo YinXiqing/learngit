@@ -142,7 +142,6 @@ export default function Navbar() {
                         {[
                           { href: '/history', label: '观看历史' },
                           { href: '/my-videos', label: '我的视频' },
-                          { href: '/ai-assistant', label: 'AI 助手' },
                           { href: '/profile', label: '个人资料' },
                           ...(isAdmin() ? [{ href: '/admin', label: '管理后台' }] : []),
                         ].map(item => (

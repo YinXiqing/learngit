@@ -23,6 +23,10 @@ class Settings(BaseSettings):
         "http://192.168.1.101:3000",
     ]
 
+    # llama.cpp server (OpenAI-compatible)
+    LLAMA_BASE_URL: str = "http://localhost:8080"
+    LLAMA_MODEL: str = "default"  # llama.cpp 不强制要求 model 字段，填任意值即可
+
     RESEND_API_KEY: str = ""
     RESEND_FROM: str = "noreply@resend.dev"
     FRONTEND_URL: str = "http://localhost:3000"
