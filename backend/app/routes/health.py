@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.deps import get_db
+from app.deps import get_db, require_admin
+from app.models import User
 from config import settings
 import time
 
@@ -37,7 +38,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     )
 
 @router.get("/metrics")
-async def metrics(db: AsyncSession = Depends(get_db)):
+async def metrics(db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
     """基础指标端点 - 用于监控"""
     from app.models import User, Video
     from sqlalchemy import func, select

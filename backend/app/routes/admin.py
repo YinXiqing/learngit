@@ -552,21 +552,6 @@ async def batch_publish(data: BatchIds, db: AsyncSession = Depends(get_db), _: U
     await db.commit()
     return {"message": f"已启动 {started} 个下载任务", "started": started}
 
-
-@router.post("/scraped/batch-download")
-async def batch_download_scraped(data: BatchIds, db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
-    items = (await db.execute(select(ScrapedVideoInfo).where(
-        ScrapedVideoInfo.id.in_(data.video_ids),
-        ScrapedVideoInfo.download_status.in_(["none", "failed"])))).scalars().all()
-    started = 0
-    for s in items:
-        s.download_status = "downloading"; s.download_progress = 0
-        asyncio.create_task(_run_download(s.id, s.source_url, s.cover_url))
-        started += 1
-    await db.commit()
-    return {"message": f"已启动 {started} 个下载任务", "started": started}
-
-
 @router.post("/scraped/batch-delete")
 async def batch_delete_scraped(data: BatchIds, db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
     result = await db.execute(delete(ScrapedVideoInfo).where(ScrapedVideoInfo.id.in_(data.video_ids)))

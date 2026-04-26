@@ -55,10 +55,8 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
       .then(({ data }) => {
         if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
 
-        if (data.is_hls || data.is_external) {
-          const url = data.is_external
-            ? `/api/video/proxy?url=${encodeURIComponent(data.video_url)}&referer=${encodeURIComponent(video.page_url || '')}`
-            : data.video_url
+        if (data.is_hls) {
+          const url = data.video_url
 
           if (window.Hls?.isSupported()) {
             const hls = new window.Hls({ enableWorker: true })

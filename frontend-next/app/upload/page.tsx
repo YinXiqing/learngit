@@ -2,8 +2,7 @@
 import { RequireAuth } from '@/components/AuthGuard'
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import api, { BACKEND_URL } from '@/lib/api'
-import axios from 'axios'
+import api from '@/lib/api'
 
 export default function Upload() {
   const router = useRouter()
@@ -52,15 +51,10 @@ export default function Upload() {
     data.append('tags', form.tags)
     if (coverFile) data.append('cover', coverFile)
     try {
-      const token = localStorage.getItem('token')
-      await axios.post(`${BACKEND_URL}/api/video/upload`, data, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+      await api.post('/video/upload', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (e) => {
           const pct = Math.round((e.loaded * 100) / (e.total ?? 1))
-          // 网络传输最多到 95%，剩余 5% 留给服务器处理（写文件+数据库）
           setProgress(Math.min(pct, 95))
         },
       })
