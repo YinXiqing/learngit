@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 用法: ./service.sh [start|stop|restart|status]
+# 用法: ./service.sh [start|stop|restart|status|backend|frontend] [--daemon]
+# --daemon: 静默后台运行，日志写入 logs/
 
 set -e
 
@@ -7,14 +8,23 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend-next"
 
+# 检测是否 daemon 模式
+DAEMON=false
+for arg in "$@"; do [[ "$arg" == "--daemon" ]] && DAEMON=true; done
+
 start_backend() {
   echo "启动后端..."
   lsof -ti:5000 | xargs kill -9 2>/dev/null || true
   cd "$BACKEND_DIR"
   source .venv/bin/activate
-  mkdir -p "$PROJECT_DIR/logs"
-  python run.py >> "$PROJECT_DIR/logs/backend.log" 2>&1 &
-  echo "后端已启动 → http://localhost:5000 (日志: logs/backend.log)"
+  if $DAEMON; then
+    mkdir -p "$PROJECT_DIR/logs"
+    python run.py >> "$PROJECT_DIR/logs/backend.log" 2>&1 &
+    echo "后端已启动 → http://localhost:5000 (日志: logs/backend.log)"
+  else
+    python run.py &
+    echo "后端已启动 → http://localhost:5000"
+  fi
 }
 
 start_frontend() {
@@ -22,8 +32,14 @@ start_frontend() {
   lsof -ti:3000 | xargs kill -9 2>/dev/null || true
   cd "$FRONTEND_DIR"
   [ ! -d node_modules ] && pnpm install
-  pnpm dev &
-  echo "前端已启动 → http://localhost:3000"
+  if $DAEMON; then
+    mkdir -p "$PROJECT_DIR/logs"
+    pnpm dev >> "$PROJECT_DIR/logs/frontend.log" 2>&1 &
+    echo "前端已启动 → http://localhost:3000 (日志: logs/frontend.log)"
+  else
+    pnpm dev &
+    echo "前端已启动 → http://localhost:3000"
+  fi
 }
 
 stop_all() {
@@ -40,11 +56,11 @@ status() {
 }
 
 case "${1:-}" in
-  start)   start_backend; start_frontend ;;
-  stop)    stop_all ;;
-  restart) stop_all; sleep 2; start_backend; start_frontend ;;
-  status)  status ;;
-  backend) start_backend ;;
+  start)    start_backend; start_frontend ;;
+  stop)     stop_all ;;
+  restart)  stop_all; sleep 2; start_backend; start_frontend ;;
+  status)   status ;;
+  backend)  start_backend ;;
   frontend) start_frontend ;;
-  *) echo "用法: $0 [start|stop|restart|status|backend|frontend]"; exit 1 ;;
+  *) echo "用法: $0 [start|stop|restart|status|backend|frontend] [--daemon]"; exit 1 ;;
 esac

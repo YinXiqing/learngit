@@ -117,7 +117,7 @@ export default function VideoPlayer({ video: initialVideo }: { video: Video }) {
                 className="px-4 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors">重试</button>
             </div>
           ) : (
-            <video ref={videoRef} controls className="w-full h-full object-contain" crossOrigin="anonymous"
+            <video ref={videoRef} controls muted className="w-full h-full object-contain" crossOrigin="anonymous"
               poster={video.cover_image ? coverSrc : undefined} />
           )}
         </div>

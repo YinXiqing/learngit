@@ -82,7 +82,7 @@ export default function VideoPreviewModal({ video, onClose, actions }: Props) {
                 <p className="text-gray-400 text-sm mb-2">视频加载失败</p>
                 <button onClick={() => { setError(false) }} className="text-xs text-primary-400 hover:underline">重试</button>
               </div>
-            : <video ref={videoRef} controls className="w-full h-full object-contain" crossOrigin="anonymous" />
+            : <video ref={videoRef} controls muted className="w-full h-full object-contain" crossOrigin="anonymous" />
           }
         </div>
 

@@ -4,6 +4,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:500
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
+  devIndicators: false,
   allowedDevOrigins: ['192.168.1.16'],
   experimental: {
     proxyClientMaxBodySize: 600 * 1024 * 1024, // 600MB，覆盖默认 10MB 限制

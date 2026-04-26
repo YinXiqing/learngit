@@ -25,6 +25,7 @@ function SearchResultsInner({ initialVideos, initialTotal, initialPages, initial
   const [page, setPage] = useState(1)
   const [activeTag, setActiveTag] = useState('')
   const [loading, setLoading] = useState(false)
+  const initializedRef = useRef(false)
 
 
   const search = useCallback(async (p: number, sort: string, tag: string) => {
@@ -42,8 +43,6 @@ function SearchResultsInner({ initialVideos, initialTotal, initialPages, initial
     } catch {}
     finally { setLoading(false) }
   }, [query])
-
-  const initializedRef = useRef(false)
 
   useEffect(() => {
     initializedRef.current = false

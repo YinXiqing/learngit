@@ -368,7 +368,7 @@ export default function AdminScraper() {
                       : null}
                     <span className="relative text-white/70 text-sm z-10">该视频格式特殊，需下载完成后可在此预览</span>
                   </div>
-                : <video ref={videoRef} controls className="w-full h-full" />
+                : <video ref={videoRef} controls muted className="w-full h-full" />
               }
             </div>
           </div>
