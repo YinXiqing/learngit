@@ -1,7 +1,7 @@
 import os, re, uuid, asyncio, aiofiles
 from app.logger import logger
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select, or_, func, update
@@ -46,7 +46,7 @@ async def _extract_cover(video_path, cover_filename) -> bool:
         return False
 
 async def _transcode_hls(video_id: int, src_path):
-    """后台异步将 MP4 转码为 HLS"""
+    """后台异步将视频转码为 HLS"""
     try:
         import subprocess
         from app.database import AsyncSessionLocal
@@ -54,10 +54,12 @@ async def _transcode_hls(video_id: int, src_path):
         hls_dir.mkdir(parents=True, exist_ok=True)
         m3u8_path = hls_dir / "index.m3u8"
         loop = asyncio.get_running_loop()
+        is_mp4 = str(src_path).lower().endswith(".mp4")
         def _run():
+            codec_args = ["-codec:", "copy"] if is_mp4 else ["-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart"]
             r = subprocess.run([
                 "ffmpeg", "-y", "-i", str(src_path),
-                "-codec:", "copy",
+                *codec_args,
                 "-start_number", "0",
                 "-hls_time", "10",
                 "-hls_list_size", "0",
@@ -159,6 +161,12 @@ async def _refresh_url_bg(video_id, page_url):
 
 BLOCKED = re.compile(r"^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.0\.0\.0|::1|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:)", re.I)
 
+# 未登录用户播放量去重：{(ip, video_id): timestamp}
+_ip_view_cache: dict[tuple, float] = {}
+
+# 上传防重复：{(user_id, content_hash): timestamp}
+_upload_cache: dict[tuple, float] = {}
+
 
 @router.get("/list")
 async def list_videos(page: int = 1, per_page: int = 12, search: str = "", tag: str = "",
@@ -193,7 +201,7 @@ async def get_video_detail(video_id: int, db: AsyncSession = Depends(get_db),
 
 
 @router.get("/stream/{video_id}")
-async def stream_video(video_id: int, db: AsyncSession = Depends(get_db),
+async def stream_video(request: Request, video_id: int, db: AsyncSession = Depends(get_db),
                        user: Optional[User] = Depends(get_optional_user)):
     video = await db.get(Video, video_id)
     if not video:
@@ -201,9 +209,9 @@ async def stream_video(video_id: int, db: AsyncSession = Depends(get_db),
     if video.status not in ("approved", "pending"):
         if not user or (user.id != video.user_id and user.role != "admin"):
             raise HTTPException(403, "Access denied")
-    # 同一用户1小时内不重复计数
     from datetime import datetime, timedelta, timezone
     from app.models import WatchHistory
+    import time
     should_count = True
     if user:
         recent = (await db.execute(
@@ -215,6 +223,19 @@ async def stream_video(video_id: int, db: AsyncSession = Depends(get_db),
         )).scalars().first()
         if recent:
             should_count = False
+    else:
+        ip = request.client.host if request.client else "unknown"
+        key = (ip, video_id)
+        now = time.time()
+        if key in _ip_view_cache and now - _ip_view_cache[key] < 3600:
+            should_count = False
+        else:
+            _ip_view_cache[key] = now
+            # 顺便清理过期条目，避免内存无限增长
+            if len(_ip_view_cache) > 10000:
+                cutoff = now - 3600
+                for k in [k for k, v in _ip_view_cache.items() if v < cutoff]:
+                    del _ip_view_cache[k]
     if should_count:
         await db.execute(update(Video).where(Video.id == video_id).values(view_count=Video.view_count + 1))
         await db.commit()
@@ -302,6 +323,15 @@ async def upload_video(title: str = Form(...), description: str = Form(""), tags
     content = await video.read()
     if len(content) > settings.MAX_UPLOAD_SIZE:
         raise HTTPException(413, "File too large")
+
+    # 防重复提交：同一用户 5 分钟内相同文件拒绝
+    import hashlib, time as _time
+    content_hash = hashlib.md5(content[:1024 * 1024]).hexdigest()  # 只 hash 前 1MB，够快
+    dedup_key = (user.id, content_hash)
+    _now = _time.time()
+    if dedup_key in _upload_cache and _now - _upload_cache[dedup_key] < 300:
+        raise HTTPException(429, "请勿重复提交，5 分钟内已上传相同文件")
+    _upload_cache[dedup_key] = _now
     
     # 读取并验证封面图片
     cover_content = None

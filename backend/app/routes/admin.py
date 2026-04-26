@@ -218,6 +218,9 @@ class ScrapeIn(BaseModel):
 async def scrape_video(data: ScrapeIn, db: AsyncSession = Depends(get_db),
                        admin: User = Depends(require_admin)):
     url = data.url.strip()
+    existing = (await db.execute(select(ScrapedVideoInfo).where(ScrapedVideoInfo.source_url == url))).scalar_one_or_none()
+    if existing:
+        raise HTTPException(409, "该 URL 已抓取过")
     loop = asyncio.get_running_loop()
     try:
         title, cover_url, video_url, duration, http_headers, is_m3u8 = await loop.run_in_executor(None, _ydlp_extract, url)
@@ -248,6 +251,13 @@ async def scrape_videos_batch(data: BatchScrapeIn, db: AsyncSession = Depends(ge
     urls = [u.strip() for u in data.urls if u.strip()][:20]
     if not urls:
         raise HTTPException(400, "No valid URLs provided")
+    # 过滤已抓取的 URL
+    existing_urls = set((await db.execute(
+        select(ScrapedVideoInfo.source_url).where(ScrapedVideoInfo.source_url.in_(urls))
+    )).scalars().all())
+    urls = [u for u in urls if u not in existing_urls]
+    if not urls:
+        raise HTTPException(409, "所有 URL 均已抓取过")
     loop = asyncio.get_running_loop()
     import json
     sem = asyncio.Semaphore(3)
