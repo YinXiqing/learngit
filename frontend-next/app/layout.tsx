@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <AuthProvider>
           <div className="min-h-screen flex flex-col">
             <Navbar />
-            <main className="flex-1">{children}</main>
+            <main className="flex-1 md:pt-0 pt-11">{children}</main>
             <footer className="bg-gray-800 dark:bg-[#1a1a1a] text-gray-300 py-8 hidden md:block border-t border-gray-700 dark:border-gray-800">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

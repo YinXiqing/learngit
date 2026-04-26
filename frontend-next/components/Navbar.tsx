@@ -91,8 +91,8 @@ export default function Navbar() {
               <span className="hidden sm:block text-base font-bold text-gray-900 dark:text-gray-100">视频平台</span>
             </Link>
 
-            {/* 搜索栏居中 */}
-            <form onSubmit={handleSearch} className="absolute left-1/2 -translate-x-1/2 w-full max-w-lg px-24 sm:px-28 md:px-4">
+            {/* 搜索栏居中 - 仅桌面 */}
+            <form onSubmit={handleSearch} className="hidden md:block absolute left-1/2 -translate-x-1/2 w-full max-w-lg px-4">
               <div className="relative">
                 <input type="text" value={q} onChange={e => setQ(e.target.value)}
                   onFocus={() => setShowHistory(true)}
@@ -125,7 +125,6 @@ export default function Navbar() {
 
             {/* 右侧 */}
             <div className="flex items-center gap-2 ml-auto z-10">
-              {/* 上传按钮 - 始终显示，未登录跳登录页 */}
               <Link href={user ? "/upload" : "/login"} className="hidden sm:flex items-center gap-1 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors px-2 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -136,8 +135,6 @@ export default function Navbar() {
               {user ? (
                 <>
                   <NotificationBell />
-
-                  {/* 头像 + 下拉菜单 */}
                   <div className="relative" ref={userMenuRef}>
                     <button 
                       onClick={() => setShowUserMenu(v => !v)} 
@@ -173,6 +170,38 @@ export default function Navbar() {
               )}
             </div>
 
+          </div>
+
+          {/* 搜索栏 - 仅移动端，在 header 第二行 */}
+          <div className="md:hidden pb-2">
+            <form onSubmit={handleSearch} className="relative">
+              <input type="text" value={q} onChange={e => setQ(e.target.value)}
+                onFocus={() => setShowHistory(true)}
+                onBlur={() => setTimeout(() => setShowHistory(false), 150)}
+                placeholder="搜索视频..."
+                className="w-full pl-4 pr-9 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#2a2a2a] dark:text-gray-100 dark:placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white dark:focus:bg-[#333] transition-all" />
+              <button type="submit" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary-600">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
+              {showHistory && searchHistory.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#2a2a2a] rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-50">
+                  {searchHistory.map(term => (
+                    <div key={term} onClick={() => handleHistoryClick(term)}
+                      className="flex items-center justify-between px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-700 dark:text-gray-300">
+                      <span className="flex items-center gap-2">
+                        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        {term}
+                      </span>
+                      <button onClick={e => removeHistory(term, e)} className="text-gray-300 hover:text-gray-500">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </form>
           </div>
         </div>
       </header>

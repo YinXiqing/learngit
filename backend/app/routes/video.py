@@ -549,7 +549,7 @@ async def clear_history(db: AsyncSession = Depends(get_db), user: User = Depends
 
 @router.get("/download/{video_id}")
 async def download_video(video_id: int, db: AsyncSession = Depends(get_db),
-                         user: Optional[User] = Depends(get_optional_user)):
+                         user: User = Depends(get_current_user)):
     video = await db.get(Video, video_id)
     if not video:
         raise HTTPException(404)

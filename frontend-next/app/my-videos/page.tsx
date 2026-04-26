@@ -98,36 +98,33 @@ export default function MyVideos() {
           ) : filtered.length > 0 ? (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {filtered.map(v => (
-                <div key={v.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <div className="grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-6 flex items-center space-x-4">
-                      <div className="relative w-32 h-20 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer" onClick={() => setPreview(v)}>
-                          {v.cover_image
-                            ? <Image src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} fill className="object-cover" sizes="128px" />
-                            : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
-                            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" /></svg>
-                          </div>
-                          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">{dur(v.duration)}</div>
-                        </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 line-clamp-2"><Link href={`/video/${v.id}`} className="hover:text-primary-600">{v.title}</Link></h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{v.description || '暂无简介'}</p>
+                <div key={v.id} className="px-4 sm:px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <div className="flex gap-3 sm:gap-4">
+                    {/* 封面 */}
+                    <div className="relative w-28 h-18 sm:w-32 sm:h-20 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer" style={{height: '4.5rem'}} onClick={() => setPreview(v)}>
+                      {v.cover_image
+                        ? <Image src={v.is_scraped && v.cover_image?.startsWith('http') ? v.cover_image : `/api/video/cover/${v.id}`} alt={v.title} fill className="object-cover" sizes="128px" />
+                        : <div className="w-full h-full bg-gradient-to-br from-primary-400 to-primary-600" />}
+                      <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">{dur(v.duration)}</div>
+                    </div>
+                    {/* 内容 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 flex-1">
+                          <Link href={`/video/${v.id}`} className="hover:text-primary-600">{v.title}</Link>
+                        </h3>
+                        {statusBadge(v.status)}
                       </div>
-                    </div>
-                    <div className="col-span-2">{statusBadge(v.status)}</div>
-                    <div className="col-span-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                      <div>{fmt(v.view_count)} 次观看</div>
-                      <div>{new Date(v.created_at).toLocaleDateString()}</div>
-                    </div>
-                    <div className="col-span-2 flex items-center justify-center space-x-2">
-                      <button onClick={() => setPreview(v)} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">预览</button>
-                      <button onClick={() => setEditing({...v, tags: v.tags ?? []})} className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-600">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                      </button>
-                      <button onClick={() => deleteVideo(v.id)} className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-600">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{fmt(v.view_count)} 次观看 · {new Date(v.created_at).toLocaleDateString()}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={() => setPreview(v)} className="px-2.5 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">预览</button>
+                        <button onClick={() => setEditing({...v, tags: v.tags ?? []})} className="p-1.5 text-gray-400 hover:text-blue-600">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        </button>
+                        <button onClick={() => deleteVideo(v.id)} className="p-1.5 text-gray-400 hover:text-red-600">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

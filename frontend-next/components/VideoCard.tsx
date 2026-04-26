@@ -35,6 +35,7 @@ function VideoCard({ video, formatViews, formatDuration, priority = false }: {
   }
 
   const handleEnter = () => {
+    if (window.matchMedia('(hover: none)').matches) return
     timer.current = setTimeout(() => {
       setIsHovered(true)
       // 等 video 元素渲染后再启动
