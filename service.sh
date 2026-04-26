@@ -12,8 +12,9 @@ start_backend() {
   lsof -ti:5000 | xargs kill -9 2>/dev/null || true
   cd "$BACKEND_DIR"
   source .venv/bin/activate
-  python run.py &
-  echo "后端已启动 → http://localhost:5000"
+  mkdir -p "$PROJECT_DIR/logs"
+  python run.py >> "$PROJECT_DIR/logs/backend.log" 2>&1 &
+  echo "后端已启动 → http://localhost:5000 (日志: logs/backend.log)"
 }
 
 start_frontend() {

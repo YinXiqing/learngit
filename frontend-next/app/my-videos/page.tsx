@@ -33,30 +33,37 @@ export default function MyVideos() {
   const [editing, setEditing] = useState<EditingVideo | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState>({ isOpen: false })
   const [preview, setPreview] = useState<Video | null>(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const PER_PAGE = 10
 
-  useEffect(() => { fetchVideos() }, [])
+  useEffect(() => { fetchVideos(page) }, [page])
 
-  const fetchVideos = async () => {
-    try { const res = await api.get('/video/my-videos'); setVideos(res.data.videos) }
-    catch {} finally { setLoading(false) }
+  const fetchVideos = async (p = 1) => {
+    setLoading(true)
+    try {
+      const res = await api.get('/video/my-videos', { params: { page: p, per_page: PER_PAGE } })
+      setVideos(res.data.videos)
+      setTotalPages(res.data.pages)
+    } catch {} finally { setLoading(false) }
   }
 
   const deleteVideo = (id: number) => setConfirm({ isOpen: true, type: 'danger', title: '删除视频', message: '确定要删除这个视频吗？此操作不可撤销。', onConfirm: async () => {
-    try { await api.delete(`/video/my-videos/${id}/delete`); fetchVideos() } catch {}
+    try { await api.delete(`/video/my-videos/${id}/delete`); fetchVideos(page) } catch {}
     setConfirm({ isOpen: false })
   }})
 
   const saveEdit = () => setConfirm({ isOpen: true, type: 'info', title: '保存视频信息', message: '确定要保存修改吗？', onConfirm: async () => {
     if (!editing) return
-    try { await api.put(`/video/my-videos/${editing.id}/edit`, { title: editing.title, description: editing.description, tags: editing.tags }); setEditing(null); fetchVideos() } catch {}
+    try { await api.put(`/video/my-videos/${editing.id}/edit`, { title: editing.title, description: editing.description, tags: editing.tags }); setEditing(null); fetchVideos(page) } catch {}
     setConfirm({ isOpen: false })
   }})
 
   const tabs = [
-    { id: 'all', label: '全部', count: videos.length },
-    { id: 'approved', label: '已通过', count: videos.filter(v => v.status === 'approved').length },
-    { id: 'pending', label: '审核中', count: videos.filter(v => v.status === 'pending').length },
-    { id: 'rejected', label: '已拒绝', count: videos.filter(v => v.status === 'rejected').length },
+    { id: 'all', label: '全部' },
+    { id: 'approved', label: '已通过' },
+    { id: 'pending', label: '审核中' },
+    { id: 'rejected', label: '已拒绝' },
   ]
   const filtered = activeTab === 'all' ? videos : videos.filter(v => v.status === activeTab)
 
@@ -77,7 +84,7 @@ export default function MyVideos() {
             {tabs.map(t => (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
                 className={`flex-1 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === t.id ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'}`}>
-                {t.label} <span className="ml-2 bg-gray-100 dark:bg-[#2a2a2a] text-gray-600 dark:text-gray-400 py-0.5 px-2 rounded-full text-xs">{t.count}</span>
+                {t.label}
               </button>
             ))}
           </div>
@@ -130,6 +137,15 @@ export default function MyVideos() {
             <div className="text-center py-16">
               <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">暂无视频</h3>
               {activeTab === 'all' && <Link href="/upload" className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700">上传视频</Link>}
+            </div>
+          )}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 py-4 border-t border-gray-100 dark:border-gray-800">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-800">上一页</button>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{page} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-800">下一页</button>
             </div>
           )}
         </div>

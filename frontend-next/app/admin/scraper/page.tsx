@@ -1,5 +1,4 @@
 'use client'
-'use client'
 import { RequireAdmin } from '@/components/AuthGuard'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import api from '@/lib/api'
@@ -88,8 +87,12 @@ export default function AdminScraper() {
 
   useEffect(() => {
     videos.filter(v => v.download_status === 'downloading').forEach(v => startPolling(v.id))
-    return () => { Object.values(pollingRef.current).forEach(clearInterval) }
   }, [videos.length])
+
+  // 组件卸载时清理所有轮询
+  useEffect(() => {
+    return () => { Object.values(pollingRef.current).forEach(clearInterval); pollingRef.current = {} }
+  }, [])
 
   const handleScrape = async (e: React.FormEvent) => {
     e.preventDefault(); setScraping(true)
